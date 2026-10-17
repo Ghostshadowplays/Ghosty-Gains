@@ -1,0 +1,43 @@
+# Built application files
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Java / JVM
+*.class
+*.log
+
+# Gradle
+.gradle/
+build/
+/*/build/
+
+# Local configuration
+local.properties
+
+# IntelliJ IDEA / Android Studio
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Android profiling & C++
+.cxx/
+captures/
+
+# Keystore exception: keep the repository's shared debug keystore
+*.jks
+*.keystore
+!keystore/ghostygains-debug.keystore
+
+# Temp files
+*.tmp
+*.bak
+*.swp

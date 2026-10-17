@@ -1,0 +1,1211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Ghosty Gains — Bodybuilding &amp; Physique App</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">
+        <img src="app_icon.png" alt="Ghosty Gains" class="brand-icon-img" onerror="this.style.display='none';">
+      </div>
+      <div>
+        <div class="brand-title">GHOSTY GAINS</div>
+        <div class="brand-subtitle">PHYSIQUE COACH</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="badge-goal" id="header-goal-badge" title="Tap to switch Goal">
+        <span id="active-goal-badge">💪 Bodybuilder Return</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Scrollable App Container -->
+  <main class="container">
+
+    <!-- ==================== TAB 1: WORKOUTS ==================== -->
+    <section id="tab-workouts" class="tab-view active">
+
+      <div class="subnav-pills">
+        <button class="subnav-btn active" id="subtab-plan" data-subview="subview-plan">📋 My Plan</button>
+        <button class="subnav-btn" id="subtab-picker" data-subview="subview-picker">🎯 Muscle Picker</button>
+      </div>
+
+      <!-- SUBVIEW 1: WORKOUT PLAN -->
+      <div id="subview-plan" class="subview active">
+
+      <!-- Rest Timer Bar -->
+      <div class="rest-timer-bar">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">⏱️</span>
+          <span class="timer-digits" id="timer-display">01:00</span>
+        </div>
+        <div class="timer-controls">
+          <button class="timer-preset-btn" data-sec="30">30s</button>
+          <button class="timer-preset-btn active" data-sec="60">60s</button>
+          <button class="timer-preset-btn" data-sec="90">90s</button>
+          <button class="timer-preset-btn" data-sec="120">2m</button>
+          <button class="btn btn-cyan btn-sm" id="btn-timer-start">Start</button>
+          <button class="btn btn-outline btn-sm" id="btn-timer-pause">Pause</button>
+          <button class="btn btn-outline btn-sm" id="btn-timer-reset">↺</button>
+        </div>
+      </div>
+
+      <!-- Current Active Routine Header Card -->
+      <div class="card">
+        <div class="card-title-row">
+          <div>
+            <div class="card-title purple" id="active-routine-name">Ghosty's Bodybuilding Return Split</div>
+            <div class="card-subtitle" id="current-goal-tagline">Rebuild muscle, joint health, RPE 7-8, safe progression</div>
+          </div>
+        </div>
+
+        <!-- Day Filter Chips (built from the active routine in app.js) -->
+        <div class="day-filter-bar" id="workout-day-filter-bar"></div>
+
+        <div class="callout">
+          <strong>Tip:</strong> Tap checkboxes to log completed exercises (they reset every Monday). Tap the pencil icon (✎) to customize weights, reps, or cues.
+        </div>
+      </div>
+
+      <!-- Diet & health auto-adjustments -->
+      <div id="workout-adapt-banner" style="margin-bottom: 10px;"></div>
+
+      <!-- Workout Days List Container -->
+      <div id="workout-days-container"></div>
+      </div>
+
+      <!-- SUBVIEW 2: MUSCLE PICKER -->
+      <div id="subview-picker" class="subview">
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title cyan">🎯 Pick Your Focus Muscles</div>
+          </div>
+          <p class="card-subtitle" style="margin-bottom: 10px;">Tap the muscles you want to build most. You'll get the best exercises for them with pictures, how-to steps and sets for your goal.</p>
+
+          <div class="bodymap-controls">
+            <div class="day-filter-bar" id="bodymap-sex" style="margin: 0;">
+              <button class="day-chip" data-sex="male">♂ Man</button>
+              <button class="day-chip" data-sex="female">♀ Woman</button>
+            </div>
+            <div class="day-filter-bar" id="bodymap-side" style="margin: 0;">
+              <button class="day-chip" data-side="front">Front</button>
+              <button class="day-chip" data-side="back">Back</button>
+            </div>
+          </div>
+
+          <div class="bodymap-wrap">
+            <svg id="bodymap-svg" viewBox="0 0 200 460" role="img" aria-label="Tap muscles to select them"></svg>
+          </div>
+
+          <div class="bodymap-other-side" id="bodymap-other-side"></div>
+          <div class="report-section-title">Your focus</div>
+          <div class="worked-on-chips" id="bodymap-selected"></div>
+          <button class="btn btn-outline btn-sm" id="btn-bodymap-clear" style="margin-top: 10px;">↺ Clear selection</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title purple">💪 Your Focus Exercises</div>
+          </div>
+          <div class="day-filter-bar" id="exercise-kit-filter">
+            <button class="day-chip" data-kit="gym">🏢 Full gym</button>
+            <button class="day-chip" data-kit="home">🏠 Dumbbells / home</button>
+            <button class="day-chip" data-kit="bodyweight">🤸 Bodyweight</button>
+          </div>
+          <div id="focus-plan-tips"></div>
+          <div id="focus-exercises-container"></div>
+          <p class="card-subtitle" style="margin-top: 10px;">Exercise photos & steps: free-exercise-db (public domain).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: NUTRITION ==================== -->
+    <section id="tab-nutrition" class="tab-view">
+      
+      <!-- Sub-Navigation Switcher (Simple vs Pro Mode) -->
+      <div class="subnav-pills" style="margin-bottom: 12px;">
+        <button class="subnav-btn active" id="subtab-nutri-simple" data-nutriview="nutri-view-simple">🟢 Simple Mode (Auto-Fill)</button>
+        <button class="subnav-btn" id="subtab-nutri-pro" data-nutriview="nutri-view-pro">⚡ Pro Mode (Custom Logs)</button>
+      </div>
+
+      <!-- Daily Macro Target vs Logged Meters Card -->
+      <div class="macro-progress-card">
+        <div class="calorie-summary-header">
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Today's Calories</div>
+            <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 2px;">
+              <span class="cal-big-consumed" id="macro-calories-logged">0</span>
+              <span class="cal-target-sub" id="macro-calories-target">/ 2,200 kcal</span>
+            </div>
+          </div>
+          <div class="cal-remain-pill" id="macro-calories-remain">2,200 kcal left</div>
+        </div>
+
+        <div class="progress-track-lg">
+          <div class="progress-fill-lg" id="macro-calories-bar" style="width: 0%;"></div>
+        </div>
+
+        <div class="macro-bars-grid">
+          <div class="macro-bar-item">
+            <div class="macro-bar-header">
+              <span style="color: var(--primary);">🥩 Protein</span>
+              <span id="macro-bar-text-p">0 / 140g</span>
+            </div>
+            <div class="macro-bar-track">
+              <div class="macro-bar-fill protein" id="macro-fill-p" style="width: 0%;"></div>
+            </div>
+          </div>
+          <div class="macro-bar-item">
+            <div class="macro-bar-header">
+              <span style="color: var(--green);">🍚 Carbs</span>
+              <span id="macro-bar-text-c">0 / 240g</span>
+            </div>
+            <div class="macro-bar-track">
+              <div class="macro-bar-fill carbs" id="macro-fill-c" style="width: 0%;"></div>
+            </div>
+          </div>
+          <div class="macro-bar-item">
+            <div class="macro-bar-header">
+              <span style="color: var(--orange);">🥑 Fats</span>
+              <span id="macro-bar-text-f">0 / 65g</span>
+            </div>
+            <div class="macro-bar-track">
+              <div class="macro-bar-fill fats" id="macro-fill-f" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="water-row">
+          <span>💧 Fluids today: <b id="water-total">0 ml</b> <span id="water-target" style="color: var(--text-muted);"></span></span>
+          <span style="display: flex; gap: 4px;">
+            <button class="chip-btn" data-water="250">+250 ml</button>
+            <button class="chip-btn" data-water="500">+500 ml</button>
+            <button class="chip-btn" id="btn-water-undo" title="Undo last water">↶</button>
+          </span>
+        </div>
+      </div>
+
+      <!-- Quick Action Food & Barcode Bar -->
+      <div class="card" style="padding: 12px; margin-bottom: 12px; background: rgba(0,0,0,0.25);">
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button class="btn btn-cyan btn-sm" id="btn-open-scanner" style="flex: 1; min-width: 120px;">📷 Scan Barcode</button>
+          <button class="btn btn-outline btn-sm" id="btn-snap-photo-barcode" style="flex: 1; min-width: 110px;">📸 Snap Photo</button>
+          <button class="btn btn-purple btn-sm" id="btn-open-takeaways" style="flex: 1; min-width: 120px;">🍔 Takeaways &amp; Meals</button>
+          <button class="btn btn-outline btn-sm" id="btn-open-scanner-manual" style="flex: 1; min-width: 100px;">🔍 Search</button>
+          <button class="btn btn-outline btn-sm" id="btn-open-food-library" style="flex: 1; min-width: 120px;">📚 Library (<span id="saved-food-count-badge">0</span>)</button>
+          <button class="btn btn-outline btn-sm" id="btn-open-custom-food" style="flex: 1; min-width: 110px;">＋ Custom Food</button>
+        </div>
+        <!-- Hidden Photo Capture Input for instant fallback -->
+        <input type="file" id="barcode-file-snap" accept="image/*" capture="environment" style="display: none;">
+      </div>
+
+      <!-- ================= SUBVIEW: SIMPLE MODE ================= -->
+      <div id="nutri-view-simple" class="nutriview active">
+        <!-- Simple Mode Hero Banner -->
+        <div class="simple-mode-hero">
+          <div class="simple-mode-hero-header">
+            <div class="simple-mode-title">🟢 Goal Auto-Pilot</div>
+            <span class="day-badge cyan" id="simple-mode-goal-badge">💪 Muscle Growth</span>
+          </div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
+            Balanced daily meals generated to hit your training target (<span id="simple-target-summary">2,200 kcal · 140g Protein</span>).
+          </p>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-cyan btn-sm" id="btn-simple-autofill" style="flex: 1.2;">⚡ Auto-Fill Today's Log</button>
+            <button class="btn btn-outline btn-sm" id="btn-simple-reroll" style="flex: 1;">🎲 Swap Meals</button>
+          </div>
+        </div>
+
+        <!-- Suggested Daily Meal Plan Cards -->
+        <div id="simple-suggested-meals-container"></div>
+
+        <!-- 30-Day Plan Stats & Generation -->
+        <div class="card" style="margin-top: 12px;">
+          <div class="card-title-row">
+            <div class="card-title purple">🍽️ 30-Day Meal Rotation</div>
+            <button class="btn btn-outline btn-sm" id="btn-refresh-plan">↻ Refresh</button>
+          </div>
+          <div class="stat-grid">
+            <div class="stat-box">
+              <div class="stat-label">Daily Average</div>
+              <div class="stat-val cyan" id="plan-avg-calories">2,200 kcal</div>
+              <div class="stat-sub">Target Match</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Protein Intake</div>
+              <div class="stat-val purple" id="plan-avg-protein">132 g</div>
+              <div class="stat-sub">Lean growth</div>
+            </div>
+          </div>
+          <div id="meal-plan-container" style="max-height: 380px; overflow-y: auto; margin-top: 10px;"></div>
+        </div>
+
+        <!-- Shopping List Card inside Meals tab -->
+        <div class="card">
+          <div class="card-title-row">
+            <div>
+              <div class="card-title">🛒 Monthly Shopping List</div>
+              <div class="card-subtitle">Aggregated ingredients for meal rotations</div>
+            </div>
+            <button class="btn btn-cyan btn-sm" id="btn-copy-shopping">📋 Copy</button>
+          </div>
+
+          <div style="display: flex; gap: 8px; margin: 10px 0;">
+            <button class="btn btn-outline btn-sm" id="btn-add-shop-item">＋ Add Item</button>
+            <button class="btn btn-outline btn-sm" id="btn-clear-shop-checked">↺ Clear Checks</button>
+          </div>
+
+          <div id="shopping-list-container" style="background: rgba(0,0,0,0.2); border-radius: 8px; padding: 4px;"></div>
+        </div>
+      </div>
+
+      <!-- ================= SUBVIEW: PRO MODE ================= -->
+      <div id="nutri-view-pro" class="nutriview" style="display: none;">
+        <!-- Meal Slot 1: Breakfast -->
+        <div class="meal-slot-card" id="slot-card-breakfast">
+          <div class="meal-slot-header">
+            <div>
+              <div class="meal-slot-title">🌅 Breakfast</div>
+              <div class="meal-slot-meta" id="slot-meta-breakfast">0 kcal · 0g P · 0g C · 0g F</div>
+            </div>
+            <button class="btn btn-outline btn-sm" id="btn-add-to-breakfast">＋ Add Food</button>
+          </div>
+          <div id="slot-items-breakfast"></div>
+        </div>
+
+        <!-- Meal Slot 2: Lunch -->
+        <div class="meal-slot-card" id="slot-card-lunch">
+          <div class="meal-slot-header">
+            <div>
+              <div class="meal-slot-title">🥪 Lunch</div>
+              <div class="meal-slot-meta" id="slot-meta-lunch">0 kcal · 0g P · 0g C · 0g F</div>
+            </div>
+            <button class="btn btn-outline btn-sm" id="btn-add-to-lunch">＋ Add Food</button>
+          </div>
+          <div id="slot-items-lunch"></div>
+        </div>
+
+        <!-- Meal Slot 3: Dinner -->
+        <div class="meal-slot-card" id="slot-card-dinner">
+          <div class="meal-slot-header">
+            <div>
+              <div class="meal-slot-title">🍽️ Dinner</div>
+              <div class="meal-slot-meta" id="slot-meta-dinner">0 kcal · 0g P · 0g C · 0g F</div>
+            </div>
+            <button class="btn btn-outline btn-sm" id="btn-add-to-dinner">＋ Add Food</button>
+          </div>
+          <div id="slot-items-dinner"></div>
+        </div>
+
+        <!-- Meal Slot 4: Snacks & Late Night -->
+        <div class="meal-slot-card" id="slot-card-snack">
+          <div class="meal-slot-header">
+            <div>
+              <div class="meal-slot-title">🌙 Snacks &amp; Late Night</div>
+              <div class="meal-slot-meta" id="slot-meta-snack">0 kcal · 0g P · 0g C · 0g F</div>
+            </div>
+            <button class="btn btn-outline btn-sm" id="btn-add-to-snack">＋ Add Food</button>
+          </div>
+          <div id="slot-items-snack"></div>
+        </div>
+
+        <!-- Pro Actions Row -->
+        <div style="display: flex; gap: 8px; margin-top: 14px;">
+          <button class="btn btn-outline btn-sm" id="btn-clear-daily-logs" style="flex: 1;">↺ Clear Today's Log</button>
+          <button class="btn btn-cyan btn-sm" id="btn-copy-daily-macros" style="flex: 1;">📋 Copy Day's Summary</button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== TAB 3: ACTIVITY & SLEEP ==================== -->
+    <section id="tab-activity" class="tab-view">
+      
+      <!-- Sub-Navigation Switcher -->
+      <div class="subnav-pills">
+        <button class="subnav-btn active" id="subtab-steps" data-subview="subview-steps">👟 Step Counter</button>
+        <button class="subnav-btn" id="subtab-sleep" data-subview="subview-sleep">🌙 Sleep &amp; Recovery</button>
+      </div>
+
+      <!-- SUBVIEW 1: STEPS -->
+      <div id="subview-steps" class="subview active">
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title cyan">👟 Daily Step Counter</div>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-outline btn-sm" id="btn-sync-steps" title="Sync hardware sensor">🔄 Sync</button>
+              <button class="btn btn-outline btn-sm" id="btn-edit-step-goal">⚙️ Goal</button>
+            </div>
+          </div>
+
+          <!-- Circular Step Gauge -->
+          <div class="ring-container">
+            <div class="steps-circle-wrap">
+              <svg class="steps-circle-svg" viewBox="0 0 180 180">
+                <defs>
+                  <linearGradient id="stepsGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#00c8ff" />
+                    <stop offset="100%" stop-color="#c586f0" />
+                  </linearGradient>
+                </defs>
+                <circle class="steps-circle-bg" cx="90" cy="90" r="76" />
+                <circle class="steps-circle-progress" id="steps-circle-bar" cx="90" cy="90" r="76" stroke-dasharray="477.5" stroke-dashoffset="477.5" />
+              </svg>
+              <div class="steps-circle-content">
+                <div class="steps-big-num" id="step-count-display">0</div>
+                <div class="steps-goal-lbl" id="step-goal-display">Goal: 10,000</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pause / Start counting -->
+          <div style="display: flex; justify-content: center; margin-top: 6px;">
+            <button class="btn btn-sm btn-outline" id="btn-toggle-step-pause" style="min-width: 160px;">⏸ Pause Counting</button>
+          </div>
+
+          <!-- Live Step Stats Grid -->
+          <div class="stat-grid" style="margin-top: 10px;">
+            <div class="stat-box">
+              <div class="stat-label">Distance</div>
+              <div class="stat-val cyan" id="step-distance-display">0.0 km</div>
+              <div class="stat-sub" id="step-miles-display">0.0 mi</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Active Burn</div>
+              <div class="stat-val orange" id="step-calories-display">0 kcal</div>
+              <div class="stat-sub">Walking energy</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Active Time</div>
+              <div class="stat-val purple" id="step-time-display">0 min</div>
+              <div class="stat-sub">Pace estimate</div>
+            </div>
+          </div>
+
+          <!-- Quick Step Logging -->
+          <div style="margin-top: 14px;">
+            <div style="font-size: 11.5px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-align: center;">
+              Quick Log Steps / Adjust Total
+            </div>
+            <div class="step-quick-chips">
+              <button class="chip-btn" data-add-steps="500">+500</button>
+              <button class="chip-btn" data-add-steps="1000">+1,000</button>
+              <button class="chip-btn" data-add-steps="2500">+2,500</button>
+              <button class="chip-btn" data-add-steps="5000">+5,000</button>
+              <button class="chip-btn" id="btn-custom-steps">✏️ Custom</button>
+              <button class="chip-btn" id="btn-reset-steps">↺ Reset</button>
+            </div>
+          </div>
+
+          <div class="callout info" style="margin-top: 14px;">
+            <strong>Sensor Connection:</strong> <span id="pedometer-status-text">Hardware sensor active &amp; logging steps.</span>
+          </div>
+        </div>
+
+        <!-- 7-Day Step Progression Chart -->
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title purple">📊 7-Day Step History</div>
+            <span class="day-badge purple" id="step-weekly-avg">Avg: 0 / day</span>
+          </div>
+          <div class="chart-container" style="height: 170px;">
+            <svg class="svg-chart" id="steps-chart-svg"></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUBVIEW 2: SLEEP & RECOVERY -->
+      <div id="subview-sleep" class="subview">
+        
+        <!-- Recovery Readiness Score Card -->
+        <div class="recovery-gauge-wrap">
+          <div class="recovery-score-badge" id="recovery-score-badge">
+            <div class="recovery-score-num" id="recovery-score-num">88%</div>
+            <div class="recovery-score-sub">RECOVERY</div>
+          </div>
+          <div class="recovery-text">
+            <h4 id="recovery-status-title">Optimal Hypertrophy Readiness</h4>
+            <p id="recovery-status-desc">
+              Sufficient deep sleep has primed your central nervous system. Full power for progressive overload and muscle protein synthesis!
+            </p>
+          </div>
+        </div>
+
+        <!-- Log Sleep Card -->
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title">🌙 Log Sleep Duration &amp; Quality</div>
+          </div>
+          
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="sleep-bedtime-h">Bedtime</label>
+              <div class="time-select" data-time-for="sleep-bedtime"></div>
+              <input id="sleep-bedtime" type="hidden" value="23:00">
+            </div>
+            <div class="form-group">
+              <label for="sleep-waketime-h">Wake Time</label>
+              <div class="time-select" data-time-for="sleep-waketime"></div>
+              <input id="sleep-waketime" type="hidden" value="07:00">
+            </div>
+          </div>
+
+          <div style="margin: 8px 0 12px;">
+            <label style="font-size: 11.5px; color: var(--text-muted); font-weight: 700;">Sleep Quality Rating</label>
+            <div class="rating-stars-row" id="sleep-quality-stars">
+              <button class="star-btn" data-star="1">⭐</button>
+              <button class="star-btn" data-star="2">⭐</button>
+              <button class="star-btn" data-star="3">⭐</button>
+              <button class="star-btn active" data-star="4">⭐</button>
+              <button class="star-btn" data-star="5">⭐</button>
+            </div>
+            <div style="font-size: 11.5px; color: var(--cyan); font-weight: 700;" id="sleep-quality-label">4 Stars — Great Restorative Sleep</div>
+          </div>
+
+          <div class="form-group">
+            <label for="sleep-notes">Recovery &amp; Rest Notes</label>
+            <input id="sleep-notes" type="text" placeholder="e.g. Uninterrupted, felt energized">
+          </div>
+
+          <button class="btn btn-block btn-cyan" id="btn-save-sleep" style="margin-top: 8px;">Save Sleep Log</button>
+
+          <!-- Daytime naps count towards sleep debt -->
+          <div class="report-section-title">😴 Daytime nap</div>
+          <div class="input-row">
+            <select id="nap-minutes" aria-label="Nap length">
+              <option value="10">10 min</option>
+              <option value="20" selected>20 min</option>
+              <option value="30">30 min</option>
+              <option value="45">45 min</option>
+              <option value="60">1 hour</option>
+              <option value="90">1.5 hours</option>
+              <option value="120">2 hours</option>
+              <option value="180">3 hours</option>
+            </select>
+            <button class="btn btn-outline btn-sm" id="btn-save-nap" style="flex: 1;">＋ Log Nap Today</button>
+          </div>
+          <div id="nap-list" style="margin-top: 6px;"></div>
+
+          <!-- Sleep Stats -->
+          <div class="stat-grid" style="margin-top: 14px;">
+            <div class="stat-box">
+              <div class="stat-label">Last Night</div>
+              <div class="stat-val cyan" id="sleep-hours-stat">8h 00m</div>
+              <div class="stat-sub">Duration</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Target Sleep</div>
+              <div class="stat-val purple" id="sleep-target-stat">8.0 h</div>
+              <div class="stat-sub">Daily goal</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Sleep Debt</div>
+              <div class="stat-val orange" id="sleep-debt-stat">0.0 h</div>
+              <div class="stat-sub">7-Day balance</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sleep Hygiene Checklist Card -->
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title purple">🛌 Muscle Recovery Sleep Hygiene</div>
+            <button class="btn btn-outline btn-sm" id="btn-reset-hygiene">↺ Reset</button>
+          </div>
+          <p class="card-subtitle" style="margin-bottom: 12px;">
+            Habits that protect testosterone, growth hormone, and hypertrophy recovery:
+          </p>
+          <div id="sleep-hygiene-container"></div>
+        </div>
+
+        <!-- 7-Day Sleep Trend Chart -->
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title">📈 7-Day Sleep Trend</div>
+          </div>
+          <div class="chart-container" style="height: 170px;">
+            <svg class="svg-chart" id="sleep-chart-svg"></svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: PROFILE, GOALS & PROGRESS ==================== -->
+    <section id="tab-profile" class="tab-view">
+      
+      <!-- Sub-Navigation Switcher -->
+      <div class="subnav-pills">
+        <button class="subnav-btn active" id="subtab-goals" data-subview="subview-goals">🎯 Goals</button>
+        <button class="subnav-btn" id="subtab-weight" data-subview="subview-weight">📈 Weight</button>
+        <button class="subnav-btn" id="subtab-progress" data-subview="subview-progress">📸 Physique</button>
+        <button class="subnav-btn" id="subtab-supps" data-subview="subview-supps">💊 Supps</button>
+      </div>
+
+      <!-- SUBVIEW 1: GOALS & MACROS -->
+      <div id="subview-goals" class="subview active">
+        <!-- Physique Goal Archetypes -->
+        <div class="goal-hero">
+          <div class="goal-hero-header">
+            <div class="goal-title">🎯 Select Your Physique Goal</div>
+          </div>
+          <p style="font-size: 12px; color: var(--text-muted);">
+            Auto-tunes your daily calorie surplus/deficit, protein target, and workout split:
+          </p>
+          <div class="goal-pills" id="goal-pills-container"></div>
+        </div>
+
+        <!-- Profile & Calorie Inputs Card -->
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title cyan">⚡ Calorie &amp; Macro BMR Calculator</div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="profile-weight">Bodyweight</label>
+              <input id="profile-weight" type="number" step="0.1" value="10.4">
+            </div>
+            <div class="form-group">
+              <label for="profile-unit">Weight Unit</label>
+              <select id="profile-unit">
+                <option value="stone">Stone (decimal)</option>
+                <option value="kg">Kilograms (kg)</option>
+                <option value="lb">Pounds (lb)</option>
+              </select>
+            </div>
+            <div class="form-group span-2">
+              <label for="profile-height">Height <span id="profile-height-hint" style="color: var(--cyan); font-weight: 600;"></span></label>
+              <div class="input-row">
+                <input id="profile-height" type="number" step="0.1" value="165.1" placeholder="cm">
+                <input id="profile-height-ft" type="number" min="3" max="8" step="1" placeholder="ft" aria-label="Height feet" style="display: none;">
+                <input id="profile-height-in" type="number" min="0" max="11.5" step="0.5" placeholder="in" aria-label="Height inches" style="display: none;">
+                <select id="profile-height-unit" aria-label="Height unit">
+                  <option value="ftin">ft / in</option>
+                  <option value="cm">cm</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="profile-age">Age</label>
+              <input id="profile-age" type="number" value="33">
+            </div>
+            <div class="form-group">
+              <label for="profile-sex">Biological Sex (for BMR)</label>
+              <select id="profile-sex">
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="profile-activity">Daily Activity (outside the gym)</label>
+              <select id="profile-activity">
+                <option value="1.2">Sedentary — desk job, little walking</option>
+                <option value="1.375">Light — on your feet some of the day</option>
+                <option value="1.55">Moderate — active job or lots of walking</option>
+                <option value="1.725">Heavy — physical job</option>
+                <option value="1.9">Extreme — heavy labour / athlete</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="profile-calorie-target">Daily Calorie Target (kcal)</label>
+              <input id="profile-calorie-target" type="number" step="50" value="2200">
+            </div>
+            <div class="form-group">
+              <label for="profile-protein-target">Daily Protein Target (g)</label>
+              <input id="profile-protein-target" type="number" step="5" value="130">
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px; margin: 4px 0 10px; flex-wrap: wrap;">
+            <button class="btn btn-outline btn-sm" id="btn-redo-setup">🩹 Health &amp; setup</button>
+            <button class="btn btn-outline btn-sm" id="btn-auto-targets">↻ Auto-calculate targets</button>
+            <span style="font-size: 11px; color: var(--text-muted);">Typing your own targets locks them until you tap this or change goal.</span>
+          </div>
+
+          <!-- Calculated Stats Display -->
+          <div class="stat-grid">
+            <div class="stat-box">
+              <div class="stat-label">Calculated BMI</div>
+              <div class="stat-val cyan" id="calc-bmi">24.2</div>
+              <div class="stat-sub" id="calc-bmi-detail">Normal</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Maintenance</div>
+              <div class="stat-val orange" id="calc-maintenance">2,100 kcal</div>
+              <div class="stat-sub">Incl. training</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Goal Target</div>
+              <div class="stat-val purple" id="calc-target">2,200 kcal</div>
+              <div class="stat-sub">Active target</div>
+            </div>
+          </div>
+
+          <div class="report-text" id="calc-breakdown" style="margin-top: 6px;"></div>
+
+          <!-- Macro Breakdown -->
+          <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px; margin-top: 10px;">
+            <div style="font-size: 12px; font-weight: 700; color: #fff; margin-bottom: 6px;">Target Macro Split</div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px;">
+              <span>🥩 Protein: <b id="macro-protein" style="color: var(--primary);">130g (24%)</b></span>
+              <span>🍚 Carbs: <b id="macro-carbs" style="color: var(--cyan);">245g (45%)</b></span>
+              <span>🥑 Fats: <b id="macro-fats" style="color: var(--orange);">75g (31%)</b></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUBVIEW 2: WEIGHT TRACKER -->
+      <div id="subview-weight" class="subview">
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title purple">📈 Bodyweight Logger &amp; Trend</div>
+          </div>
+          
+          <div class="form-grid">
+            <div class="form-group span-2">
+              <label for="log-weight-date-d">Log Date</label>
+              <div class="time-select" data-date-for="log-weight-date"></div>
+            <input id="log-weight-date" type="hidden">
+            </div>
+            <div class="form-group">
+              <label for="log-weight-input">Weight</label>
+              <div class="input-row">
+                <input id="log-weight-input" type="number" step="0.1" value="10.4">
+                <select id="log-weight-unit">
+                  <option value="stone">st</option>
+                  <option value="kg">kg</option>
+                  <option value="lb">lb</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-block btn-cyan" id="btn-save-weight-log">Save Weight Log</button>
+
+          <div class="stat-grid" style="margin-top: 14px;">
+            <div class="stat-box">
+              <div class="stat-label">Current Weight</div>
+              <div class="stat-val cyan" id="tracker-latest-stat">10.4 st</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Total Change</div>
+              <div class="stat-val purple" id="tracker-change-stat">Baseline</div>
+            </div>
+          </div>
+
+          <!-- SVG Weight Progression Chart -->
+          <div class="chart-container" style="height: 180px;">
+            <svg class="svg-chart" id="tracker-chart-svg"></svg>
+          </div>
+
+          <!-- Weight History List -->
+          <div style="font-weight: 700; font-size: 13px; color: var(--text-muted); margin: 14px 0 6px;">History Log</div>
+          <ul class="log-list" id="tracker-history-list"></ul>
+        </div>
+      </div>
+
+      <!-- SUBVIEW 3: PHYSIQUE PROGRESS PHOTOS & TAPE MEASUREMENTS -->
+      <div id="subview-progress" class="subview">
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title cyan">📸 Physique Progress Photos</div>
+          </div>
+          <p class="card-subtitle" style="margin-bottom: 10px;">
+            Take the same photo every 2–4 weeks. Your phone measures your outline (photos never leave the device) and shows what's grown, what's tightened, and what you trained in between.
+          </p>
+
+          <div style="font-size: 11.5px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">Pose</div>
+          <div class="slot-select-grid progress-pose-grid" id="progress-pose-selector">
+            <button class="slot-select-btn active" data-pose="front">🧍 Front</button>
+            <button class="slot-select-btn" data-pose="side">🚶 Side</button>
+            <button class="slot-select-btn" data-pose="back">🔙 Back</button>
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-top: 10px;">
+            <button class="btn btn-cyan btn-sm" id="btn-progress-camera" style="flex: 1;">📷 Take Photo</button>
+            <button class="btn btn-outline btn-sm" id="btn-progress-gallery" style="flex: 1;">🖼️ From Gallery</button>
+          </div>
+
+          <div id="progress-analyzing" style="display: none; text-align: center; padding: 12px; color: var(--cyan); font-weight: bold;">
+            ⚡ Measuring your physique on-device...
+          </div>
+
+          <details class="progress-guide">
+            <summary>📏 How to take a photo the app can track</summary>
+            <ul>
+              <li><b>Same spot, same light</b> every time — plain wall behind you works best.</li>
+              <li><b>Head to feet in frame</b>, filling most of the photo. Phone propped at chest height, use the camera timer.</li>
+              <li><b>Front/Back:</b> feet shoulder-width apart, arms relaxed about 30–45° out from your sides (not touching).</li>
+              <li><b>Side:</b> stand side-on, arms down, relaxed — no sucking in.</li>
+              <li>Fitted clothing or shorts so your outline is visible. Same time of day (morning is most consistent).</li>
+              <li>Changes under ~2.5% are within normal photo-to-photo noise.</li>
+            </ul>
+          </details>
+        </div>
+
+        <!-- Latest comparison report -->
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title purple">🏆 Gainz Report</div>
+          </div>
+          <div id="progress-report-container"></div>
+        </div>
+
+        <!-- Gallery -->
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title">🖼️ Photo Gallery</div>
+            <span class="day-badge purple" id="progress-photo-count">0 photos</span>
+          </div>
+          <div class="day-filter-bar" id="progress-gallery-filter">
+            <button class="day-chip active" data-filter="all">All</button>
+            <button class="day-chip" data-filter="front">Front</button>
+            <button class="day-chip" data-filter="side">Side</button>
+            <button class="day-chip" data-filter="back">Back</button>
+          </div>
+          <div class="progress-grid" id="progress-gallery-grid"></div>
+          <p class="card-subtitle" style="margin-top: 8px;">Photos are kept privately inside the app and aren't included in data backups — use "Save to phone gallery" on any photo to keep a copy.</p>
+        </div>
+
+        <!-- Tape measurements -->
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title cyan">📏 Tape Measurements</div>
+            <select id="tape-unit" style="width: 80px;">
+              <option value="cm">cm</option>
+              <option value="in">in</option>
+            </select>
+          </div>
+          <p class="card-subtitle" style="margin-bottom: 10px;">Real sizes back up the photo estimates. Measure relaxed (arm flexed), same spot each time.</p>
+          <div class="form-grid" id="tape-form-grid"></div>
+          <div class="form-group">
+            <label for="tape-date-d">Date</label>
+            <div class="time-select" data-date-for="tape-date"></div>
+            <input id="tape-date" type="hidden">
+          </div>
+          <button class="btn btn-block btn-cyan" id="btn-save-tape">Save Measurements</button>
+          <div id="tape-history-container" style="margin-top: 12px;"></div>
+        </div>
+      </div>
+
+      <!-- SUBVIEW 4: SUPPLEMENTS & BACKUP -->
+      <div id="subview-supps" class="subview">
+        <!-- Supplements Guide Card -->
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title">💊 Daily Supplement Checklist</div>
+            <button class="btn btn-outline btn-sm" id="btn-reset-supplements">↺ Reset Today</button>
+          </div>
+          <div id="supplements-container"></div>
+        </div>
+
+        <!-- App Data Backup Card -->
+        <div class="card">
+          <div class="card-title-row">
+            <div class="card-title purple">⚙️ App Data &amp; Backup</div>
+          </div>
+          <p class="card-subtitle" style="margin-bottom: 12px;">Save or restore your custom workouts, food logs, weight history, tape sizes and photo measurements (the photos themselves stay on the phone).</p>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-outline btn-sm" id="btn-export-data" style="flex: 1;">💾 Export Backup</button>
+            <button class="btn btn-outline btn-sm" id="btn-import-data" style="flex: 1;">📂 Restore Backup</button>
+          </div>
+          <div style="margin-top: 12px; text-align: center;">
+            <button class="btn btn-outline btn-sm btn-danger" id="btn-reset-all-data">Reset All Data to Default</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- MODAL: ADD / EDIT EXERCISE -->
+  <div class="modal-overlay" id="modal-exercise">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="exercise-modal-title">Add / Edit Exercise</div>
+        <button class="modal-close" onclick="document.getElementById('modal-exercise').classList.remove('active')">✕</button>
+      </div>
+      <div class="form-group">
+        <label for="modal-ex-name">Exercise Name</label>
+        <input id="modal-ex-name" type="text" placeholder="e.g. Incline Dumbbell Press">
+      </div>
+      <div class="form-group">
+        <label for="modal-ex-sets">Sets &amp; Reps</label>
+        <input id="modal-ex-sets" type="text" placeholder="e.g. 3 × 8–12">
+      </div>
+      <div class="form-group">
+        <label for="modal-ex-notes">Form Cues / Weight Notes / Rest</label>
+        <textarea id="modal-ex-notes" rows="3" placeholder="e.g. Keep elbows at 45°, 2 reps in reserve, 24kg"></textarea>
+      </div>
+      <div style="display: flex; gap: 10px; margin-top: 16px;">
+        <button class="btn btn-cyan btn-block" id="btn-save-exercise">Save Exercise</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: BARCODE SCANNER & NUTRITION LOOKUP -->
+  <div class="modal-overlay" id="modal-barcode">
+    <div class="modal" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title">📷 Food Barcode Scanner</div>
+        <button class="modal-close" id="btn-close-scanner">✕</button>
+      </div>
+      
+      <!-- Live Camera Viewfinder -->
+      <div class="scanner-viewport-wrap" id="scanner-viewport-box">
+        <video id="scanner-video" class="scanner-video" playsinline autoplay muted></video>
+        <canvas id="scanner-canvas" style="display: none;"></canvas>
+        <div class="scanner-overlay">
+          <div class="scanner-target-box">
+            <div class="scanner-laser-line"></div>
+          </div>
+          <div class="scanner-hint" id="scanner-status-hint">Point camera at food packaging barcode</div>
+        </div>
+      </div>
+
+      <!-- Camera Controls -->
+      <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+        <button class="btn btn-outline btn-sm" id="btn-toggle-camera" style="flex: 1;">📷 Live Camera</button>
+        <button class="btn btn-outline btn-sm" id="btn-toggle-torch" style="flex: 1;">⚡ Flashlight</button>
+        <button class="btn btn-outline btn-sm" id="btn-modal-snap-photo" style="flex: 1;">📸 Snap Photo</button>
+      </div>
+
+      <!-- Manual Barcode Search / Input -->
+      <div class="form-group">
+        <label for="manual-barcode-input">Manual Barcode or Food Name</label>
+        <div style="display: flex; gap: 6px;">
+          <input id="manual-barcode-input" type="text" placeholder="e.g. 5000128001234 or Greek Yogurt">
+          <button class="btn btn-cyan btn-sm" id="btn-lookup-barcode" style="white-space: nowrap;">🔍 Look Up</button>
+        </div>
+      </div>
+
+      <!-- Loading Indicator -->
+      <div id="scanner-loading" style="display: none; text-align: center; padding: 14px; color: var(--cyan); font-weight: bold;">
+        <span>⚡ Fetching Nutrition Data from Open Food Facts...</span>
+      </div>
+
+      <!-- Scanned Result Card Container -->
+      <div id="scanned-result-container"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: TAKEAWAYS & HOME MEALS -->
+  <div class="modal-overlay" id="modal-takeaways">
+    <div class="modal" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title">🍔 Takeaways &amp; Meals</div>
+        <button class="modal-close" id="btn-close-takeaways">✕</button>
+      </div>
+      <p class="card-subtitle" style="margin-bottom: 10px;">Typical UK portions. Shops and recipes vary, so treat these as a good guide.</p>
+      <div class="form-group">
+        <input id="takeaway-search-input" type="text" placeholder="🔍 Search e.g. doner, tikka, spag bol...">
+      </div>
+      <div id="takeaway-category-chips" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;"></div>
+      <div id="takeaway-list-container" style="max-height: 380px; overflow-y: auto;"></div>
+      <div id="takeaway-detail-container"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: FOOD LIBRARY & HISTORY -->
+  <div class="modal-overlay" id="modal-food-library">
+    <div class="modal" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title">📚 Saved Foods &amp; Gym Library</div>
+        <button class="modal-close" onclick="document.getElementById('modal-food-library').classList.remove('active')">✕</button>
+      </div>
+      
+      <div class="form-group">
+        <input id="food-lib-search-input" type="text" placeholder="🔍 Search saved foods or gym staples...">
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+        <button class="btn btn-cyan btn-sm" id="btn-lib-add-custom-food" style="flex: 1;">＋ Create Custom Food</button>
+      </div>
+
+      <div id="food-library-list-container" style="max-height: 380px; overflow-y: auto;"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: CREATE CUSTOM FOOD -->
+  <div class="modal-overlay" id="modal-custom-food">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <div class="modal-title" id="custom-food-title">✍️ Create Custom Food</div>
+        <button class="modal-close" onclick="document.getElementById('modal-custom-food').classList.remove('active')">✕</button>
+      </div>
+
+      <div class="slot-select-grid" id="custom-food-kind" style="margin-top: 0;">
+        <button class="slot-select-btn active" data-kind="food">🍽️ Food</button>
+        <button class="slot-select-btn" data-kind="drink">🥤 Drink</button>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group" style="grid-column: span 2;">
+          <label for="custom-food-name" id="custom-food-name-label">Food Name</label>
+          <input id="custom-food-name" type="text" placeholder="e.g. Grandma's High-Protein Beef Stew">
+        </div>
+        <div class="form-group">
+          <label for="custom-food-brand">Brand / Source (Optional)</label>
+          <input id="custom-food-brand" type="text" placeholder="e.g. Homemade / Bulk">
+        </div>
+        <div class="form-group">
+          <label for="custom-food-serving-amt">One serving is</label>
+          <div class="input-row">
+            <input id="custom-food-serving-amt" type="number" inputmode="decimal" step="any" value="100">
+            <select id="custom-food-serving-unit"></select>
+          </div>
+        </div>
+        <div class="form-group span-2">
+          <label>The nutrition I'm typing in is for</label>
+          <div class="slot-select-grid" id="custom-food-basis" style="margin: 0;">
+            <button class="slot-select-btn active" data-basis="serving">1 serving (above)</button>
+            <button class="slot-select-btn" data-basis="100" id="custom-food-basis-100">Per 100g (label)</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="custom-food-kcal">Calories (kcal per <span class="per-unit">100g</span>)</label>
+          <input id="custom-food-kcal" inputmode="decimal" type="number" step="1" placeholder="250">
+        </div>
+        <div class="form-group">
+          <label for="custom-food-pro">Protein (g per <span class="per-unit">100g</span>)</label>
+          <input id="custom-food-pro" inputmode="decimal" type="number" step="0.1" placeholder="25">
+        </div>
+        <div class="form-group">
+          <label for="custom-food-carb">Carbs (g per <span class="per-unit">100g</span>)</label>
+          <input id="custom-food-carb" inputmode="decimal" type="number" step="0.1" placeholder="20">
+        </div>
+        <div class="form-group">
+          <label for="custom-food-fat">Fats (g per <span class="per-unit">100g</span>)</label>
+          <input id="custom-food-fat" inputmode="decimal" type="number" step="0.1" placeholder="5">
+        </div>
+        <div class="form-group span-2">
+          <label for="custom-food-servings-now">How many servings are you having now?</label>
+          <input id="custom-food-servings-now" type="number" inputmode="decimal" step="any" min="0" value="1">
+          <div class="report-text" id="custom-food-preview" style="margin-top: 4px;"></div>
+        </div>
+      </div>
+
+      <div style="margin-top: 12px;">
+        <label style="font-size: 11.5px; font-weight: 700; color: var(--text-muted);">Assign Directly To Today's Meal (Optional):</label>
+        <div class="slot-select-grid" id="custom-food-slot-selector">
+          <button class="slot-select-btn" data-slot="breakfast">🌅 Breakfast</button>
+          <button class="slot-select-btn" data-slot="lunch">🥪 Lunch</button>
+          <button class="slot-select-btn" data-slot="dinner">🍽️ Dinner</button>
+          <button class="slot-select-btn" data-slot="snack">🌙 Snack</button>
+        </div>
+      </div>
+
+      <button class="btn btn-cyan btn-block" id="btn-save-custom-food" style="margin-top: 14px;">💾 Save &amp; Log Food</button>
+    </div>
+  </div>
+
+  <!-- MODAL: EDIT STEP GOAL -->
+  <div class="modal-overlay" id="modal-step-goal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">👟 Set Daily Step Goal</div>
+        <button class="modal-close" onclick="document.getElementById('modal-step-goal').classList.remove('active')">✕</button>
+      </div>
+      <div class="form-group">
+        <label for="input-step-goal">Daily Steps Target</label>
+        <input id="input-step-goal" type="number" step="500" value="10000">
+      </div>
+      <div style="display: flex; gap: 6px; margin: 10px 0; flex-wrap: wrap;">
+        <button class="chip-btn" onclick="document.getElementById('input-step-goal').value = 7500">7,500</button>
+        <button class="chip-btn" onclick="document.getElementById('input-step-goal').value = 10000">10,000</button>
+        <button class="chip-btn" onclick="document.getElementById('input-step-goal').value = 12500">12,500</button>
+        <button class="chip-btn" onclick="document.getElementById('input-step-goal').value = 15000">15,000</button>
+      </div>
+      <button class="btn btn-cyan btn-block" id="btn-save-step-goal" style="margin-top: 10px;">Save Step Goal</button>
+    </div>
+  </div>
+
+  <!-- MODAL: CUSTOM STEP LOG -->
+  <div class="modal-overlay" id="modal-custom-steps">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">✏️ Custom Step Entry</div>
+        <button class="modal-close" onclick="document.getElementById('modal-custom-steps').classList.remove('active')">✕</button>
+      </div>
+      <div class="form-group">
+        <label for="input-custom-steps">Enter Steps to Add or Set Today</label>
+        <input id="input-custom-steps" type="number" step="100" value="1000">
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 14px;">
+        <button class="btn btn-outline" id="btn-set-absolute-steps" style="flex: 1;">Set Total</button>
+        <button class="btn btn-cyan" id="btn-add-custom-steps" style="flex: 1;">+ Add to Total</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: FIRST-LAUNCH SETUP -->
+  <div class="modal-overlay" id="modal-onboarding">
+    <div class="modal" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title">👻 Welcome to Ghosty Gains</div>
+        <span class="day-badge purple" id="ob-progress" style="white-space: nowrap;">Step 1 of 4</span>
+      </div>
+
+      <div class="ob-step">
+        <p class="card-subtitle" style="margin-bottom: 10px;">Tell us about you so we can work out your calories, protein and plan.</p>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="ob-sex">Sex (for calorie maths)</label>
+            <select id="ob-sex"><option value="male">Male</option><option value="female">Female</option></select>
+          </div>
+          <div class="form-group">
+            <label for="ob-age">Age</label>
+            <input id="ob-age" type="number" inputmode="numeric" min="13" max="100" placeholder="e.g. 33">
+          </div>
+          <div class="form-group span-2">
+            <label for="ob-weight">Weight</label>
+            <div class="input-row">
+              <input id="ob-weight" type="number" inputmode="decimal" step="0.1" placeholder="e.g. 10.4">
+              <select id="ob-weight-unit"><option value="stone">stone</option><option value="kg">kg</option><option value="lb">lb</option></select>
+            </div>
+          </div>
+          <div class="form-group span-2">
+            <label for="ob-height-ft">Height</label>
+            <div class="input-row">
+              <input id="ob-height-ft" type="number" inputmode="numeric" placeholder="ft">
+              <input id="ob-height-in" type="number" inputmode="decimal" step="0.5" placeholder="in">
+              <input id="ob-height-cm" type="number" inputmode="decimal" step="0.1" placeholder="cm">
+              <select id="ob-height-unit"><option value="ftin">ft / in</option><option value="cm">cm</option></select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ob-step">
+        <div class="form-group">
+          <label for="ob-activity">Daily activity (outside the gym)</label>
+          <select id="ob-activity">
+            <option value="1.2">Sedentary — desk job, little walking</option>
+            <option value="1.375">Light — on your feet some of the day</option>
+            <option value="1.55">Moderate — active job or lots of walking</option>
+            <option value="1.725">Heavy — physical job</option>
+            <option value="1.9">Extreme — heavy labour / athlete</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="ob-goal">Training goal</label>
+          <select id="ob-goal"><option value="bodybuilding">💪 Bodybuilding Return</option><option value="gainz">🚀 Muscle Gain / Bulk</option><option value="pure_bodybuilder">🏆 Dedicated Bodybuilder</option><option value="fatloss">🔥 Fat Loss / Shred</option><option value="stay_same">⚖️ Recomp / Maintain</option><option value="get_fit">🏃 Get Fit / Athletic</option><option value="strongman">🦍 Strongman / Strongwoman</option></select>
+        </div>
+        <div class="form-group">
+          <label for="ob-kit">Where do you train?</label>
+          <select id="ob-kit">
+            <option value="gym">🏢 Full gym</option>
+            <option value="home">🏠 Home with dumbbells</option>
+            <option value="bodyweight">🤸 No equipment</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="ob-step">
+        <p class="card-subtitle" style="margin-bottom: 8px;">Any injuries, disabilities or conditions? Tick all that apply — your plan swaps or flags exercises to suit. Leave blank if none.</p>
+        <div id="ob-conditions" class="ob-conditions"></div>
+        <div class="form-group" style="margin-top: 8px;">
+          <label for="ob-health-notes">Anything else (optional)</label>
+          <textarea id="ob-health-notes" rows="2" placeholder="e.g. old ACL repair on left knee, physio says no jumping"></textarea>
+        </div>
+        <div class="callout" style="margin-top: 6px;">This app gives general fitness guidance, not medical advice. If you have a health condition, check with your GP or physio before starting.</div>
+      </div>
+
+      <div class="ob-step">
+        <div class="report-section-title" style="margin-top: 0;">Your personal targets</div>
+        <div id="ob-summary"></div>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 14px;">
+        <button class="btn btn-outline" id="btn-ob-back" style="flex: 1;">← Back</button>
+        <button class="btn btn-cyan" id="btn-ob-next" style="flex: 2;">Next →</button>
+      </div>
+      <button class="btn btn-outline btn-sm btn-block" id="btn-ob-skip" style="margin-top: 8px; opacity: 0.7;">Skip for now</button>
+    </div>
+  </div>
+
+  <!-- MODAL: PICK AN EXERCISE TO ADD -->
+  <div class="modal-overlay" id="modal-add-exercise">
+    <div class="modal" style="max-width: 560px;">
+      <div class="modal-header">
+        <div class="modal-title" id="addex-title">Add Exercise</div>
+        <button class="modal-close" onclick="document.getElementById('modal-add-exercise').classList.remove('active')">✕</button>
+      </div>
+      <input id="addex-search" type="text" placeholder="🔍 Search exercises (e.g. curl, squat, row)" style="width: 100%;">
+      <div class="day-filter-bar" id="addex-muscle-filter" style="margin-top: 8px;"></div>
+      <div id="addex-list" class="addex-list"></div>
+      <button class="btn btn-outline btn-block" id="btn-addex-custom" style="margin-top: 10px;">✍️ Create my own exercise instead</button>
+    </div>
+  </div>
+
+  <!-- MODAL: EXERCISE HOW-TO -->
+  <div class="modal-overlay" id="modal-exercise-detail">
+    <div class="modal" style="max-width: 560px;">
+      <div class="modal-header">
+        <div class="modal-title" id="exdetail-title">Exercise</div>
+        <button class="modal-close" onclick="document.getElementById('modal-exercise-detail').classList.remove('active')">✕</button>
+      </div>
+      <div class="progress-compare-wrap" id="exdetail-images"></div>
+      <div class="worked-on-chips" id="exdetail-meta"></div>
+      <div class="lib-ex-sets" id="exdetail-sets" style="margin-top: 8px;"></div>
+      <div class="lib-ex-tip" id="exdetail-tip"></div>
+      <div class="report-section-title">How to do it</div>
+      <ol class="exdetail-steps" id="exdetail-steps"></ol>
+      <div id="exdetail-add-days" style="display: none;"></div>
+      <button class="btn btn-cyan btn-block" id="btn-exdetail-add" style="margin-top: 12px;">➕ Add to my plan</button>
+    </div>
+  </div>
+
+  <!-- MODAL: PROGRESS PHOTO DETAIL & COMPARE -->
+  <div class="modal-overlay" id="modal-progress-photo">
+    <div class="modal" style="max-width: 560px;">
+      <div class="modal-header">
+        <div class="modal-title" id="progress-detail-title">Progress Photo</div>
+        <button class="modal-close" onclick="document.getElementById('modal-progress-photo').classList.remove('active')">✕</button>
+      </div>
+      <div class="form-group">
+        <label for="progress-compare-select">Compare with</label>
+        <select id="progress-compare-select"></select>
+      </div>
+      <label class="progress-lines-toggle"><input type="checkbox" id="progress-show-lines" checked> Show measurement lines</label>
+      <div class="progress-compare-wrap" id="progress-compare-images"></div>
+      <div id="progress-detail-report"></div>
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button class="btn btn-outline btn-sm" id="btn-progress-save-gallery" style="flex: 1;">💾 Save to phone gallery</button>
+        <button class="btn btn-outline btn-sm btn-danger" id="btn-progress-delete" style="flex: 1;">🗑️ Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== BOTTOM NAVIGATION (4 ITEMS) ==================== -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="nav-workouts" data-tab="workouts">
+      <span class="nav-icon">🏋️</span>
+      <span class="nav-label">Workouts</span>
+    </button>
+    <button class="nav-item" id="nav-nutrition" data-tab="nutrition">
+      <span class="nav-icon">🥗</span>
+      <span class="nav-label">Nutrition</span>
+    </button>
+    <button class="nav-item" id="nav-activity" data-tab="activity">
+      <span class="nav-icon">⚡</span>
+      <span class="nav-label">Activity</span>
+    </button>
+    <button class="nav-item" id="nav-profile" data-tab="profile">
+      <span class="nav-icon">🎯</span>
+      <span class="nav-label">Goals &amp; Logs</span>
+    </button>
+  </nav>
+
+  <script src="exercise_library.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
