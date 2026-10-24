@@ -498,6 +498,43 @@ input::placeholder, textarea::placeholder {
   border-bottom: none;
 }
 
+.exercise-check-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  margin-right: 6px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+input.exercise-check {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--green);
+  cursor: pointer;
+}
+
+input.exercise-check:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.exercise-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.exercise-item.completed .exercise-name {
+  color: var(--green);
+}
+
 .exercise-main {
   flex: 1;
 }
@@ -524,6 +561,7 @@ input::placeholder, textarea::placeholder {
 
 .exercise-actions {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 8px;
   margin-left: 8px;
@@ -1327,6 +1365,24 @@ input::placeholder, textarea::placeholder {
   color: var(--text-muted);
 }
 
+.supplement-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 12px 0 18px; }
+.supplement-choice { min-height: 48px; }
+.supp-item { align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.supp-info { flex: 1 1 180px; min-width: 0; }
+.supp-item.taken { border-color: var(--green); }
+.supp-item.taken h4 { text-decoration: line-through; }
+.supp-taken-control { display: flex; gap: 8px; align-items: center; min-height: 44px; cursor: pointer; font-size: 12px; }
+.supp-taken-control input, .supplement-choice input { width: 24px; height: 24px; flex-shrink: 0; accent-color: var(--cyan); }
+.supp-suggestion { padding: 14px 0; border-bottom: 1px solid var(--card-border); }
+.supp-suggestion h4 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
+.supp-advice-level { font-size: 11px; color: var(--cyan); border: 1px solid var(--card-border); padding: 2px 7px; border-radius: 12px; }
+.supp-suggestion p { margin: 8px 0; }
+.supp-guidance-notes { margin-top: 12px; }
+.supp-guidance-notes summary { cursor: pointer; color: var(--cyan); }
+.supp-guidance-notes p { margin-top: 8px; }
+.supp-guidance-notes a { color: var(--cyan); }
+@media (max-width: 360px) { .supplement-choices { grid-template-columns: 1fr; } }
+
 /* Modals */
 .modal-overlay {
   position: fixed;
@@ -2063,3 +2119,20 @@ input::placeholder, textarea::placeholder {
 .meal-ingredient { margin-top: 12px; }
 .meal-ingredient summary { margin: 10px 0; cursor: pointer; color: var(--cyan); font-size: 12px; }
 .ingredient-nutrients input { width: 100%; min-width: 0; }
+.nutrition-date-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.nutrition-date-row input[type="date"] { flex: 1; min-width: 140px; }
+.nutrition-date-row select { flex: 1; min-width: 120px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.nutrition-history-day { display: block; width: 100%; text-align: left; white-space: normal; margin-top: 8px; }
+.planned-food-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.machine-session { padding: 10px 0; border-bottom: 1px solid var(--card-border); }
+.machine-session .report-text { margin: 4px 0; }
+#app-tutorial { position: fixed; inset: 0; z-index: 10000; pointer-events: none; }
+#app-tutorial[hidden] { display: none; }
+#app-tutorial button[hidden] { display: none; }
+.tutorial-shade { position: fixed; background: rgba(7, 8, 16, .82); pointer-events: auto; }
+#tutorial-highlight { position: fixed; border: 3px solid var(--cyan); border-radius: 10px; box-shadow: 0 0 18px var(--cyan-glow); }
+#tutorial-card { position: fixed; width: min(360px, calc(100vw - 24px)); padding: 16px; border: 1px solid var(--cyan); border-radius: 12px; background: var(--card); box-shadow: 0 8px 30px #000; pointer-events: auto; box-sizing: border-box; }
+#tutorial-card p { margin: 10px 0; line-height: 1.5; }
+#tutorial-card .nutrition-date-row { margin-bottom: 0; justify-content: flex-end; }
+#tutorial-progress { margin-right: auto; }

@@ -6,6 +6,7 @@ const path = require('node:path');
 const { chromium } = require('playwright-core');
 const root = path.resolve(__dirname, '..');
 const logic = require('../app/src/main/assets/workout_nutrition.js');
+const daily = require('../app/src/main/assets/daily_planning.js');
 
 (async () => {
   const server = http.createServer((request, response) => {
@@ -20,14 +21,54 @@ const logic = require('../app/src/main/assets/workout_nutrition.js');
   const browser = await chromium.launch({ executablePath: process.env.BROWSER_PATH || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe', headless: true });
   const errors = [];
   try {
-    const context = await browser.newContext({ viewport: { width: 412, height: 915 } });
+    const context = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true });
     await context.route('**/*', route => route.request().url().startsWith(origin) ? route.continue() : route.abort());
     const page = await context.newPage();
     page.on('pageerror', error => errors.push(error.message));
     page.on('dialog', dialog => dialog.accept());
     await page.goto(origin + '/Ghostys_Bodybuilding_Return_Plan.html');
     await page.locator('#btn-ob-skip').click();
+    const tutorialActions = ['#nav-workouts', '#btn-tutorial-next', '#btn-tutorial-next', '#nav-nutrition', '#btn-tutorial-next', '#btn-tutorial-next', '#nav-activity', '#btn-tutorial-next', '#nav-profile', '#btn-tutorial-next'];
+    for (let index = 0; index < tutorialActions.length; index++) {
+      await page.waitForFunction(expected => document.getElementById('tutorial-progress').textContent === expected, `${index + 1} / 10`);
+      assert.equal(await page.locator('#btn-tutorial-next').isVisible(), !tutorialActions[index].startsWith('#nav-'));
+      if (process.env.UI_SCREENSHOT_DIR && [0, 4, 7, 9].includes(index)) {
+        fs.mkdirSync(process.env.UI_SCREENSHOT_DIR, { recursive: true });
+        await page.screenshot({ path: path.join(process.env.UI_SCREENSHOT_DIR, `tutorial-${index + 1}.png`), animations: 'disabled' });
+      }
+      await page.locator(tutorialActions[index]).click();
+    }
+    assert.equal(await page.locator('#app-tutorial').isVisible(), false);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ghostyGainsData_v4')).tutorialCompleted), true);
+    await page.locator('#btn-start-tutorial').click();
+    await page.locator('#btn-skip-tutorial').click();
+    await page.locator('#nav-workouts').click();
+    console.log('PASS: new-user guided tutorial, real highlighted tab clicks, replay and skip');
     await page.locator('#workout-day-filter-bar button').filter({ hasText: 'Full Week' }).click();
+    let firstDay = page.locator('.day-card:not(.rest-day)').first();
+    const completionSize = await firstDay.locator('.exercise-check').first().boundingBox();
+    assert.ok(completionSize && completionSize.width >= 24 && completionSize.height >= 24, 'Unchecked completion control must have a visible, usable tap target');
+    await firstDay.locator('.exercise-check').first().check();
+    assert.equal(await firstDay.locator('.exercise-check').first().isChecked(), true);
+    assert.ok((await firstDay.locator('.day-subtitle').textContent()).startsWith('1 /'));
+    await page.reload();
+    await page.locator('#workout-day-filter-bar button').filter({ hasText: 'Full Week' }).click();
+    firstDay = page.locator('.day-card:not(.rest-day)').first();
+    assert.equal(await firstDay.locator('.exercise-check').first().isChecked(), true);
+    await firstDay.locator('.exercise-check').first().focus();
+    await page.keyboard.press('Space');
+    assert.equal(await firstDay.locator('.exercise-check').first().isChecked(), false);
+    await firstDay.locator('.exercise-check-control').first().tap();
+    assert.equal(await firstDay.locator('.exercise-check').first().isChecked(), true);
+    await firstDay.locator('.day-footer button').filter({ hasText: 'Clear Checks' }).click();
+    assert.equal(await firstDay.locator('.exercise-check:checked').count(), 0);
+    await page.locator('#workout-rpe').evaluate(input => { input.value = '6'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+    await firstDay.locator('.exercise-check').last().check();
+    assert.equal(await firstDay.locator('.exercise-check').last().isChecked(), true);
+    await firstDay.locator('.day-footer button').filter({ hasText: 'Clear Checks' }).click();
+    assert.equal(await firstDay.locator('.exercise-check:checked').count(), 0);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ghostyGainsData_v4')).workoutLog.length), 0);
+    console.log('PASS: workout completion via click, touch and keyboard; saved checks and generated-exercise reset');
     for (let rpe = 1; rpe <= 10; rpe++) {
       await page.locator('#workout-rpe').evaluate((input, value) => { input.value = value; input.dispatchEvent(new Event('input', { bubbles: true })); }, String(rpe));
       const p = logic.prescription(rpe);
@@ -64,6 +105,18 @@ const logic = require('../app/src/main/assets/workout_nutrition.js');
     console.log('PASS: all RPE values, presets, working sets, rest timer and persistence');
 
     await page.locator('#nav-nutrition').click();
+    await page.locator('#subtab-nutri-pro').click();
+    assert.equal(await page.locator('#nutri-view-pro').isVisible(), true);
+    assert.equal(await page.locator('#nutri-view-simple').isVisible(), false);
+    await page.locator('#subtab-nutri-simple').click();
+    assert.equal(await page.locator('#nutri-view-simple').isVisible(), true);
+    assert.equal(await page.locator('#nutri-view-pro').isVisible(), false);
+    assert.equal(await page.locator('#subtab-nutri-simple').evaluate(button => button.classList.contains('active')), true);
+    await page.reload();
+    await page.locator('#nav-nutrition').click();
+    assert.equal(await page.locator('#nutri-view-simple').isVisible(), true);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ghostyGainsData_v4')).nutritionMode), 'simple');
+    console.log('PASS: Simple/Pro nutrition switching, panel visibility, selected mode and persistence');
     await page.locator('#btn-open-meal-builder').click();
     await page.locator('#meal-builder-name').fill('Regression Recipe');
     await page.locator('#btn-save-custom-meal').click();
@@ -152,6 +205,156 @@ const logic = require('../app/src/main/assets/workout_nutrition.js');
       assert.ok(Math.abs(milk.totals[key] - expected) < 1e-9, `${key}: ${milk.totals[key]}`);
     }
     console.log('PASS: online nutrient units, liquid gram conversion and mixed scanned/manual ingredients');
+    await page.locator('#modal-food-library .modal-close').click();
+    const today = await page.locator('#nutrition-date').inputValue();
+    const yesterday = daily.shiftDate(today, -1);
+    const tomorrow = daily.shiftDate(today, 1);
+    async function selectDiaryDate(date) {
+      await page.locator('#nutrition-date').fill(date);
+      await page.locator('#nutrition-date').dispatchEvent('change');
+    }
+    async function addSavedRecipe() {
+      await page.locator('#btn-open-food-library').click();
+      await page.locator('.food-lib-item').filter({ hasText: 'Regression Recipe' }).click();
+      await page.locator('#scanned-result-container button').filter({ hasText: /Log to|Plan to/ }).click();
+    }
+    await selectDiaryDate(yesterday);
+    await addSavedRecipe();
+    assert.equal(await page.locator('#macro-calories-logged').textContent(), '350');
+    await page.locator('#btn-nutrition-history').click();
+    assert.equal(await page.locator('.nutrition-history-day').filter({ hasText: yesterday }).count(), 1);
+    await page.locator('.nutrition-history-day').filter({ hasText: yesterday }).click();
+    assert.ok((await page.locator('#slot-items-breakfast').textContent()).includes('Regression Recipe'));
+    await page.locator('#subtab-nutri-simple').click();
+    assert.equal(await page.locator('#nutri-view-simple').isVisible(), true);
+    assert.equal(await page.locator('#nutrition-date').inputValue(), yesterday);
+    await page.locator('#subtab-nutri-pro').click();
+    assert.ok((await page.locator('#slot-items-breakfast').textContent()).includes('Regression Recipe'));
+    await selectDiaryDate(tomorrow);
+    await addSavedRecipe();
+    assert.equal(await page.locator('#macro-calories-logged').textContent(), '350');
+    assert.equal(await page.locator('#nutrition-calorie-label').textContent(), 'Planned Calories');
+    await page.locator('#subtab-nutri-simple').click();
+    assert.equal(await page.locator('#nutri-view-simple').isVisible(), true);
+    assert.equal(await page.locator('#nutrition-date').inputValue(), tomorrow);
+    assert.ok((await page.locator('#btn-simple-autofill').textContent()).includes('Plan Meals'));
+    await page.locator('#subtab-nutri-pro').click();
+    assert.equal(await page.locator('button[data-water="250"]').isDisabled(), true);
+    assert.equal(await page.locator('.logged-food-row button').filter({ hasText: 'Mark Eaten' }).count(), 0);
+    assert.equal(await page.evaluate(date => JSON.parse(localStorage.getItem('ghostyGainsData_v4')).mealLogs.filter(entry => entry.date === date).length, tomorrow), 0);
+    await page.locator('#btn-nutrition-today').click();
+    assert.equal(await page.locator('#macro-calories-logged').textContent(), '140');
+    await page.locator('#btn-copy-meal-day').click();
+    await page.locator('#btn-confirm-copy-meals').click();
+    assert.ok((await page.locator('#copy-meals-status').textContent()).includes('already have planned meals'));
+    await page.locator('#copy-meals-replace').check();
+    await page.locator('#btn-confirm-copy-meals').click();
+    let plans = await page.evaluate(() => JSON.parse(localStorage.getItem('ghostyGainsData_v4')).mealPlans);
+    assert.equal(plans.length, 7);
+    assert.equal(plans.every(entry => entry.calories === 140), true);
+    assert.equal(new Set(plans.map(entry => entry.date)).size, 7);
+    await page.reload();
+    await page.locator('#nav-nutrition').click();
+    assert.equal(await page.locator('#nutrition-date').inputValue(), today);
+    await page.locator('#nutrition-entry-mode').selectOption('planned');
+    await addSavedRecipe();
+    assert.equal(await page.locator('#macro-calories-logged').textContent(), '140');
+    await page.locator('.logged-food-row button').filter({ hasText: 'Mark Eaten' }).click();
+    assert.equal(await page.locator('#macro-calories-logged').textContent(), '490');
+    assert.equal(await page.locator('.logged-food-row button').filter({ hasText: 'Mark Eaten' }).count(), 0);
+    await selectDiaryDate(tomorrow);
+    await page.locator('#btn-clear-daily-logs').click();
+    plans = await page.evaluate(() => JSON.parse(localStorage.getItem('ghostyGainsData_v4')).mealPlans);
+    assert.equal(plans.length, 6);
+    await page.locator('#btn-nutrition-today').click();
+    assert.equal(await page.locator('#macro-calories-logged').textContent(), '490');
+    console.log('PASS: nutrition history, future plans, seven-day meal prep, replace protection, mark eaten and date isolation');
+
+    async function openSupplements() {
+      await page.locator('#nav-profile').click();
+      await page.locator('#tab-profile [data-subview="subview-supps"]').click();
+    }
+    await openSupplements();
+    assert.equal(await page.locator('.supplement-choice input').count(), 7);
+    assert.equal(await page.locator('.supp-item').count(), 0);
+    await page.locator('.supplement-choice input[data-supplement="beta_alanine"]').check();
+    await page.locator('.supplement-choice input[data-supplement="electrolytes"]').check();
+    await page.locator('.supp-item[data-supplement="beta_alanine"] input').check();
+    assert.equal(await page.locator('#supplement-progress').textContent(), '1 / 2 taken today');
+    await page.locator('#btn-reset-supplements').click();
+    assert.equal(await page.locator('#supplement-progress').textContent(), '0 / 2 taken today');
+    assert.equal(await page.locator('.supplement-choice input:checked').count(), 2);
+    await page.locator('.supp-item[data-supplement="beta_alanine"] input').check();
+    await page.reload();
+    await openSupplements();
+    assert.equal(await page.locator('.supp-item[data-supplement="beta_alanine"] input').isChecked(), true);
+    await page.evaluate(date => {
+      const saved = JSON.parse(localStorage.getItem('ghostyGainsData_v4'));
+      saved.lastActiveDate = date;
+      localStorage.setItem('ghostyGainsData_v4', JSON.stringify(saved));
+    }, yesterday);
+    await page.reload();
+    await openSupplements();
+    assert.equal(await page.locator('.supplement-choice input:checked').count(), 2);
+    assert.equal(await page.locator('.supp-item input:checked').count(), 0);
+    await page.locator('.supp-suggestion[data-supplement="creatine"] button').click();
+    assert.equal(await page.locator('.supplement-choice input[data-supplement="creatine"]').isChecked(), true);
+    assert.equal(await page.locator('.supp-item[data-supplement="creatine"] input').isChecked(), false);
+    await page.locator('#tab-profile [data-subview="subview-goals"]').click();
+    await page.locator('.goal-pill[data-goal="strongman"]').click();
+    await page.locator('#tab-profile [data-subview="subview-supps"]').click();
+    assert.ok((await page.locator('#supplement-plan-context').textContent()).includes('Strength'));
+    assert.equal(await page.locator('.supp-suggestion[data-supplement="beta_alanine"] .supp-advice-level').textContent(), 'Lower priority');
+    await page.locator('#tab-profile [data-subview="subview-goals"]').click();
+    await page.locator('.goal-pill[data-goal="get_fit"]').click();
+    await page.locator('#nav-workouts').click();
+    await page.locator('#workout-rpe').evaluate(input => { input.value = '7'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+    await openSupplements();
+    assert.ok((await page.locator('#supplement-plan-context').textContent()).includes('RPE 7'));
+    assert.equal(await page.locator('.supp-suggestion[data-supplement="beta_alanine"] .supp-advice-level').textContent(), 'If needed');
+    await page.locator('.supp-item[data-supplement="beta_alanine"] input').check();
+    await page.locator('.supplement-choice input[data-supplement="beta_alanine"]').uncheck();
+    assert.equal(await page.locator('.supp-item[data-supplement="beta_alanine"]').count(), 0);
+    await page.locator('.supplement-choice input[data-supplement="beta_alanine"]').check();
+    assert.equal(await page.locator('.supp-item[data-supplement="beta_alanine"] input').isChecked(), false);
+    if (process.env.UI_SCREENSHOT_DIR) {
+      await page.screenshot({ path: path.join(process.env.UI_SCREENSHOT_DIR, 'supplements.png'), animations: 'disabled', fullPage: true });
+    }
+    console.log('PASS: supplement choices, daily tracking, reset and rollover, persistence, deselection and goal/style/RPE suggestions');
+
+    // Exercise browser photo OCR integration without depending on network/model downloads.
+    await page.evaluate(() => {
+      window.Tesseract = { createWorker: async () => ({ recognize: async () => ({ data: { text: 'TREADMILL\nSteps 1200\nCalories 110\nDistance 1.2 km\nTime 15:30' } }), terminate: async () => {} }) };
+    });
+    await page.locator('#nav-activity').click();
+    await page.locator('#btn-open-machine-import').click();
+    await page.locator('#machine-photo-file').setInputFiles({ name: 'display.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64') });
+    await page.waitForFunction(() => document.getElementById('machine-steps').value === '1200');
+    assert.equal(await page.locator('#machine-calories').inputValue(), '110');
+    assert.equal(await page.locator('#machine-minutes').inputValue(), '15.5');
+    assert.equal(await page.locator('#machine-add-steps').isChecked(), false);
+    await page.locator('#btn-save-machine-workout').click();
+    assert.ok((await page.locator('#machine-daily-totals').textContent()).includes('1200 steps'));
+    await page.locator('#btn-open-machine-import').click();
+    await page.locator('#machine-photo-file').setInputFiles({ name: 'display.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64') });
+    await page.waitForFunction(() => document.getElementById('machine-steps').value === '1200');
+    await page.locator('#btn-save-machine-workout').click();
+    assert.ok((await page.locator('#machine-import-error').textContent()).includes('already been added'));
+    await page.locator('[data-close-modal="modal-machine-import"]').click();
+    await page.locator('#btn-open-machine-import').click();
+    await page.locator('#machine-name').fill('Stair climber');
+    await page.locator('#machine-steps').fill('500');
+    await page.locator('#machine-calories').fill('60');
+    await page.locator('#machine-add-steps').check();
+    const beforeSteps = await page.evaluate(() => JSON.parse(localStorage.getItem('ghostyGainsData_v4')).stepsToday);
+    await page.locator('#btn-save-machine-workout').click();
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ghostyGainsData_v4')).stepsToday), beforeSteps + 500);
+    await page.locator('.machine-session').filter({ hasText: 'Stair climber' }).getByRole('button', { name: 'Remove Session' }).click();
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ghostyGainsData_v4')).stepsToday), beforeSteps);
+    await page.reload();
+    await page.locator('#nav-activity').click();
+    assert.ok((await page.locator('#machine-daily-totals').textContent()).includes('110 kcal'));
+    console.log('PASS: browser machine photo review, duplicate protection, daily training totals, optional steps and removal');
 
     // Android bridge simulation verifies that the recovery control invokes native clearing.
     const nativePage = await context.newPage();
@@ -163,19 +366,61 @@ const logic = require('../app/src/main/assets/workout_nutrition.js');
         hasStepSensor: () => true, getSensorType: () => 'Hardware Step Counter',
         hasActivityPermission: () => true, isStepsPaused: () => false,
         isInVehicle: () => window.__inVehicle, getTodayNativeSteps: () => 100,
+        readWorkoutMachinePhoto: (source, token) => {
+          if (window.__machineThrows) throw new Error('Camera unavailable');
+          window.__machineRequest = { source, token };
+        },
         syncSteps: () => setTimeout(() => window.onNativeStepSync(100, 'ok', false)),
         clearVehicleDetection: () => { window.__inVehicle = false; window.__cleared = true; setTimeout(() => window.onNativeStepSync(100, 'ok', false)); },
         showToast: () => {}, vibrate: () => {}
       };
     });
     await nativePage.goto(origin + '/app/src/main/assets/index.html');
+    await nativePage.locator('#nav-nutrition').click();
+    await nativePage.locator('#subtab-nutri-pro').click();
+    assert.equal(await nativePage.locator('#nutri-view-pro').isVisible(), true);
+    await nativePage.locator('#subtab-nutri-simple').click();
+    assert.equal(await nativePage.locator('#nutri-view-simple').isVisible(), true);
     await nativePage.locator('#nav-activity').click();
     await nativePage.locator('#btn-clear-vehicle').click();
     assert.equal(await nativePage.evaluate(() => window.__cleared), true);
     await nativePage.waitForFunction(() => document.getElementById('btn-clear-vehicle').style.display === 'none');
     assert.ok((await nativePage.locator('#pedometer-status-text').textContent()).includes('connected'));
+    await nativePage.locator('#btn-open-machine-import').click();
+    await nativePage.locator('#btn-machine-camera').click();
+    assert.equal(await nativePage.evaluate(() => window.__machineRequest.source), 'camera');
+    assert.equal(await nativePage.locator('#btn-save-machine-workout').isDisabled(), true);
+    const oldToken = await nativePage.evaluate(() => window.__machineRequest.token);
+    await nativePage.locator('[data-close-modal="modal-machine-import"]').click();
+    await nativePage.locator('#btn-open-machine-import').click();
+    await nativePage.evaluate(token => window.onMachinePhotoResult({ token, status: 'ok', text: 'Steps 9999' }), oldToken);
+    assert.equal(await nativePage.locator('#machine-steps').inputValue(), '');
+    await nativePage.locator('#btn-machine-gallery').click();
+    assert.equal(await nativePage.evaluate(() => window.__machineRequest.source), 'gallery');
+    await nativePage.evaluate(() => window.onMachinePhotoResult({ token: window.__machineRequest.token, status: 'permission' }));
+    assert.ok((await nativePage.locator('#machine-photo-status').textContent()).includes('Allow camera access'));
+    assert.equal(await nativePage.locator('#btn-save-machine-workout').isDisabled(), false);
+    await nativePage.locator('#btn-machine-camera').click();
+    await nativePage.evaluate(() => window.onMachinePhotoResult({ token: window.__machineRequest.token, status: 'cancelled' }));
+    assert.ok((await nativePage.locator('#machine-photo-status').textContent()).includes('Photo cancelled'));
+    await nativePage.evaluate(() => { window.__machineThrows = true; });
+    await nativePage.locator('#btn-machine-camera').click();
+    await nativePage.locator('#machine-name').fill('Manual after camera error');
+    await nativePage.locator('#machine-calories').fill('25');
+    await nativePage.locator('#btn-save-machine-workout').click();
+    assert.equal(await nativePage.locator('#modal-machine-import').isVisible(), false);
+    await nativePage.evaluate(() => { window.__machineThrows = false; });
+    await nativePage.locator('#btn-open-machine-import').click();
+    await nativePage.locator('#btn-machine-gallery').click();
+    await nativePage.evaluate(() => window.onMachinePhotoResult({ token: window.__machineRequest.token, status: 'ok',
+      text: 'Elliptical\nSteps 2000\nCalories 200\nTime 30:00', fingerprint: 'native-photo-test' }));
+    assert.equal(await nativePage.locator('#machine-steps').inputValue(), '2000');
+    assert.equal(await nativePage.locator('#machine-name').inputValue(), 'Elliptical');
+    await nativePage.locator('#machine-calories').fill('210');
+    await nativePage.locator('#btn-save-machine-workout').click();
+    assert.ok((await nativePage.locator('.machine-session').filter({ hasText: 'Elliptical' }).textContent()).includes('210 kcal'));
     assert.deepEqual(errors, []);
-    console.log('PASS: Android entry page and false-driving recovery control; no browser exceptions');
+    console.log('PASS: Android entry, driving recovery, native camera/gallery, stale callbacks, cancellation, permission and camera errors, reviewed OCR saving; no browser exceptions');
   } finally {
     await browser.close();
     await new Promise(resolve => server.close(resolve));

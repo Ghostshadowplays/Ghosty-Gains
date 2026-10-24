@@ -20,6 +20,7 @@
       </div>
     </div>
     <div class="header-actions">
+      <button class="btn btn-outline btn-sm" id="btn-start-tutorial" aria-label="Show app tutorial">? Guide</button>
       <div class="badge-goal" id="header-goal-badge" title="Tap to switch Goal">
         <span id="active-goal-badge">💪 Bodybuilder Return</span>
       </div>
@@ -93,6 +94,7 @@
       </div>
 
       <!-- Diet & health auto-adjustments -->
+      <p class="report-text" id="workout-machine-summary" aria-live="polite"></p>
       <div id="workout-adapt-banner" style="margin-bottom: 10px;"></div>
 
       <!-- Workout Days List Container -->
@@ -146,6 +148,19 @@
 
     <!-- ==================== TAB 2: NUTRITION ==================== -->
     <section id="tab-nutrition" class="tab-view">
+      <div class="card" id="nutrition-day-controls">
+        <div class="card-title-row"><div class="card-title cyan">Nutrition Diary &amp; Meal Prep</div><button class="btn btn-outline btn-sm" id="btn-nutrition-history">📅 History</button></div>
+        <div class="nutrition-date-row">
+          <button class="btn btn-outline btn-sm" id="btn-nutrition-prev" aria-label="Previous nutrition day">‹</button>
+          <label for="nutrition-date" class="sr-only">Nutrition date</label><input id="nutrition-date" type="date">
+          <button class="btn btn-outline btn-sm" id="btn-nutrition-next" aria-label="Next nutrition day">›</button>
+          <button class="btn btn-outline btn-sm" id="btn-nutrition-today">Today</button>
+        </div>
+        <p class="report-text" id="nutrition-date-summary" aria-live="polite"></p>
+        <div class="nutrition-date-row"><label for="nutrition-entry-mode">Add meals as</label><select id="nutrition-entry-mode"><option value="eaten">Eaten</option><option value="planned">Planned / meal prep</option></select><button class="btn btn-outline btn-sm" id="btn-copy-meal-day">Copy to Coming Days</button></div>
+        <p class="report-text" id="nutrition-planned-summary"></p>
+        <p class="report-text">Nutrition targets shown use your current profile.</p>
+      </div>
       
       <!-- Sub-Navigation Switcher (Simple vs Pro Mode) -->
       <div class="subnav-pills" style="margin-bottom: 12px;">
@@ -157,7 +172,7 @@
       <div class="macro-progress-card">
         <div class="calorie-summary-header">
           <div>
-            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Today's Calories</div>
+            <div id="nutrition-calorie-label" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Today's Calories</div>
             <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 2px;">
               <span class="cal-big-consumed" id="macro-calories-logged">0</span>
               <span class="cal-target-sub" id="macro-calories-target">/ 2,200 kcal</span>
@@ -201,7 +216,7 @@
         </div>
 
         <div class="water-row">
-          <span>💧 Fluids today: <b id="water-total">0 ml</b> <span id="water-target" style="color: var(--text-muted);"></span></span>
+          <span>💧 Fluids for this day: <b id="water-total">0 ml</b> <span id="water-target" style="color: var(--text-muted);"></span></span>
           <span style="display: flex; gap: 4px;">
             <button class="chip-btn" data-water="250">+250 ml</button>
             <button class="chip-btn" data-water="500">+500 ml</button>
@@ -211,7 +226,7 @@
       </div>
 
       <!-- Quick Action Food & Barcode Bar -->
-      <div class="card" style="padding: 12px; margin-bottom: 12px; background: rgba(0,0,0,0.25);">
+      <div class="card" id="nutrition-food-actions" style="padding: 12px; margin-bottom: 12px; background: rgba(0,0,0,0.25);">
         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
           <button class="btn btn-cyan btn-sm" id="btn-open-scanner" style="flex: 1; min-width: 120px;">📷 Scan Barcode</button>
           <button class="btn btn-outline btn-sm" id="btn-snap-photo-barcode" style="flex: 1; min-width: 110px;">📸 Snap Photo</button>
@@ -355,6 +370,12 @@
 
       <!-- SUBVIEW 1: STEPS -->
       <div id="subview-steps" class="subview active">
+        <div class="card" id="machine-workout-card">
+          <div class="card-title-row"><div class="card-title purple">📸 Machine Workouts</div><button class="btn btn-cyan btn-sm" id="btn-open-machine-import">Add Machine Photo</button></div>
+          <p class="report-text">Photograph the results display on your treadmill, bike, rower or other workout machine. Review its values, then add the session to your training.</p>
+          <div id="machine-daily-totals" aria-live="polite"></div>
+          <div id="machine-workout-list"></div>
+        </div>
         <div class="card">
           <div class="card-title-row">
             <div class="card-title cyan">👟 Daily Step Counter</div>
@@ -816,13 +837,28 @@
 
       <!-- SUBVIEW 4: SUPPLEMENTS & BACKUP -->
       <div id="subview-supps" class="subview">
-        <!-- Supplements Guide Card -->
+        <!-- Supplement choices stay saved; only taken-today checks reset each day. -->
         <div class="card">
+          <div class="card-title">💊 My Supplements</div>
+          <p class="card-subtitle">Select the ones you take. Your choices stay saved; tick Taken today after you take each one.</p>
+          <div id="supplement-choices" class="supplement-choices"></div>
           <div class="card-title-row">
             <div class="card-title">💊 Daily Supplement Checklist</div>
             <button class="btn btn-outline btn-sm" id="btn-reset-supplements">↺ Reset Today</button>
           </div>
+          <p class="report-text" id="supplement-progress" role="status"></p>
           <div id="supplements-container"></div>
+        </div>
+
+        <div class="card" id="supplement-guide">
+          <div class="card-title">Supplements for Your Plan</div>
+          <p class="card-subtitle" id="supplement-plan-context"></p>
+          <p class="report-text">These are optional suggestions based on your goal and training style. Food, sleep and consistent training come first. Selecting a supplement adds it to your checklist; it does not mean you have taken it.</p>
+          <div id="supplement-suggestions"></div>
+          <details class="supp-guidance-notes"><summary>About this guidance</summary>
+            <p class="report-text">Your plan cannot diagnose a deficiency or check medicine interactions. Ask a pharmacist or clinician before starting supplements if you have a medical condition, take medication, or are pregnant. Use the product label and avoid overlapping doses.</p>
+            <p class="report-text">Background: <a href="https://ods.od.nih.gov/factsheets/ExerciseAndAthleticPerformance-HealthProfessional/" target="_blank" rel="noopener noreferrer">NIH exercise supplement evidence</a> · <a href="https://www.nhs.uk/conditions/vitamins-and-minerals/vitamin-d/" target="_blank" rel="noopener noreferrer">NHS vitamin D guidance</a>.</p>
+          </details>
         </div>
 
         <!-- App Data Backup Card -->
@@ -845,6 +881,49 @@
   </main>
 
   <!-- ==================== MODALS ==================== -->
+  <div class="modal-overlay" id="modal-nutrition-history"><div class="modal">
+    <div class="modal-header"><div class="modal-title">Nutrition History</div><button class="modal-close" data-close-modal="modal-nutrition-history" aria-label="Close nutrition history">✕</button></div>
+    <p class="report-text">Choose a saved day to see its foods and nutrition totals. The date picker also opens days with no entries.</p>
+    <div id="nutrition-history-list"></div>
+  </div></div>
+  <div class="modal-overlay" id="modal-copy-meals"><div class="modal">
+    <div class="modal-header"><div class="modal-title">Prepare the Coming Days</div><button class="modal-close" data-close-modal="modal-copy-meals" aria-label="Close meal copying">✕</button></div>
+    <p class="report-text">Copy the selected day's meals as planned meals. They count as eaten only when you mark them eaten.</p>
+    <div class="form-group"><label for="copy-meals-start">Start date</label><input id="copy-meals-start" type="date"></div>
+    <div class="form-group"><label for="copy-meals-days">Number of days</label><select id="copy-meals-days"><option value="1">1 day</option><option value="2">2 days</option><option value="3">3 days</option><option value="4">4 days</option><option value="5">5 days</option><option value="6">6 days</option><option value="7" selected>7 days</option></select></div>
+    <label class="ob-check"><input id="copy-meals-replace" type="checkbox">Replace existing planned meals on these days</label>
+    <p class="report-text" id="copy-meals-status" role="status"></p>
+    <button class="btn btn-cyan btn-block" id="btn-confirm-copy-meals">Save Meal Prep</button>
+  </div></div>
+  <div class="modal-overlay" id="modal-machine-import"><div class="modal" style="max-width: 520px;">
+    <div class="modal-header"><div class="modal-title">Read a Machine Display</div><button class="modal-close" data-close-modal="modal-machine-import" aria-label="Close machine import">✕</button></div>
+    <p class="report-text">Use a clear photo of the final results screen, including the labels and units. Check the readings before saving.</p>
+    <div class="nutrition-date-row"><button class="btn btn-cyan btn-sm" id="btn-machine-camera">📷 Take Photo</button><button class="btn btn-outline btn-sm" id="btn-machine-gallery">Choose Photo</button></div>
+    <input id="machine-photo-file" type="file" accept="image/*" style="display: none;">
+    <img id="machine-photo-preview" alt="Machine display to review" style="display: none; max-width: 100%; max-height: 220px; margin-top: 12px; object-fit: contain;">
+    <p class="report-text" id="machine-photo-status" role="status">You can also enter the display values below.</p>
+    <div class="form-grid">
+      <div class="form-group span-2"><label for="machine-name">Machine / workout name</label><input id="machine-name" type="text" value="Treadmill" placeholder="e.g. Treadmill, exercise bike, stair climber"></div>
+      <div class="form-group"><label for="machine-steps">Steps</label><input id="machine-steps" type="number" min="0" max="200000" step="1" inputmode="numeric" placeholder="Not shown"></div>
+      <div class="form-group"><label for="machine-calories">Calories burned (kcal)</label><input id="machine-calories" type="number" min="0" max="20000" step="any" inputmode="decimal" placeholder="Not shown"></div>
+      <div class="form-group"><label for="machine-distance">Distance (km)</label><input id="machine-distance" type="number" min="0" max="500" step="any" inputmode="decimal" placeholder="Not shown"></div>
+      <div class="form-group"><label for="machine-minutes">Duration (minutes)</label><input id="machine-minutes" type="number" min="0" max="1440" step="any" inputmode="decimal" placeholder="Not shown"></div>
+    </div>
+    <label class="ob-check"><input id="machine-add-steps" type="checkbox">Also add these steps to my daily step counter</label>
+    <p class="report-text">Leave this off if your phone already counted the steps. Machine calories are recorded as reported, separately from estimated walking calories.</p>
+    <p class="report-text" id="machine-import-error" role="alert"></p>
+    <button class="btn btn-cyan btn-block" id="btn-save-machine-workout">Add to Today's Training</button>
+  </div></div>
+
+  <div id="app-tutorial" hidden aria-label="App tutorial">
+    <div class="tutorial-shade" id="tutorial-shade-top"></div><div class="tutorial-shade" id="tutorial-shade-left"></div><div class="tutorial-shade" id="tutorial-shade-right"></div><div class="tutorial-shade" id="tutorial-shade-bottom"></div>
+    <div id="tutorial-highlight"></div>
+    <div id="tutorial-card" role="dialog" aria-label="App tutorial" aria-describedby="tutorial-text">
+      <div class="card-title-row"><strong id="tutorial-title"></strong><button class="btn btn-outline btn-sm" id="btn-skip-tutorial">Skip Tour</button></div>
+      <p id="tutorial-text"></p><p class="report-text" id="tutorial-instruction" aria-live="polite"></p>
+      <div class="nutrition-date-row"><span class="report-text" id="tutorial-progress"></span><button class="btn btn-outline btn-sm" id="btn-tutorial-back">Back</button><button class="btn btn-cyan btn-sm" id="btn-tutorial-next">Next</button></div>
+    </div>
+  </div>
 
   <!-- MODAL: ADD / EDIT EXERCISE -->
   <div class="modal-overlay" id="modal-exercise">
@@ -961,6 +1040,7 @@
         <div class="modal-title">🍲 Custom Meal Builder</div>
         <button class="modal-close" id="btn-close-meal-builder" aria-label="Close meal builder">✕</button>
       </div>
+      <p class="report-text nutrition-destination"></p>
       <div class="form-group"><label for="meal-builder-name">Meal Name</label><input id="meal-builder-name" type="text" placeholder="e.g. Chicken and rice bowl"></div>
       <p class="report-text">Scan or enter each ingredient, then enter its exact grams. Nutrition label values are per 100g. Leave unavailable nutrients blank.</p>
       <div id="meal-builder-ingredients"></div>
@@ -1033,7 +1113,7 @@
       </div>
 
       <div style="margin-top: 12px;">
-        <label style="font-size: 11.5px; font-weight: 700; color: var(--text-muted);">Assign Directly To Today's Meal (Optional):</label>
+        <label style="font-size: 11.5px; font-weight: 700; color: var(--text-muted);">Add to the selected day's meal (optional):</label>
         <div class="slot-select-grid" id="custom-food-slot-selector">
           <button class="slot-select-btn" data-slot="breakfast">🌅 Breakfast</button>
           <button class="slot-select-btn" data-slot="lunch">🥪 Lunch</button>
@@ -1247,6 +1327,8 @@
   <script>window.ASSET_BASE = 'app/src/main/assets/';</script>
   <script src="app/src/main/assets/exercise_library.js"></script>
   <script src="app/src/main/assets/workout_nutrition.js"></script>
+  <script src="app/src/main/assets/daily_planning.js"></script>
+  <script src="app/src/main/assets/supplements.js"></script>
   <script src="app/src/main/assets/app.js"></script>
 </body>
 </html>

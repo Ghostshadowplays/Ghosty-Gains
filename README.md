@@ -11,19 +11,31 @@
 - **Interactive Muscle Focus Picker**: Visual SVG-based body map to target specific muscle groups and receive recommended exercises, form cues, and sets.
 - **Built-in Rest Timer & Custom Exercise Logging**: Configurable rest interval timer, form cue logging, and weekly completion tracking.
 - **RPE Workout Intensity**: A 1–10 slider adjusts exercise count, working sets, reps in reserve and rest. RPE 6 gives 5 exercises with 4 sets, RPE 7–8 gives 3–4 exercises with 3 sets, and RPE 9–10 gives 2–3 exercises with 2 sets. Training style presets choose a starting RPE; the slider remains adjustable. RPE 1–5 uses 5 exercises, 4 easy sets and longer rests. Recovery days stay as recovery days.
+- **Personal Supplement Checklist**: Goals & Logs → Supps lets users choose from Vitamin D3, Creatine, Protein Powder, Omega-3, Multivitamins, Beta-Alanine and Electrolytes. Choices stay saved; separate Taken today checks reset daily. The plan guide explains conditional options for the active goal, training style and RPE without automatically selecting products. It accounts for age, pregnancy/postpartum, heart/blood pressure context and UK vitamin D season; dietary gaps remain conditional. Existing checked supplements and custom backup entries are preserved on upgrade.
 
 ### 🥗 Nutrition & Macro Optimization
 - **Dual Mode Nutrition Tracking**:
   - **Simple Mode (Auto-Pilot)**: Automated balanced meal suggestions and 30-day rotation plans matched to target calories and macros.
   - **Pro Mode**: Granular logging by meal slot (Breakfast, Lunch, Dinner, Snacks) with custom food creations and UK takeaway estimates.
+  - Switch between Simple and Pro at any time, including after opening history or future meal plans. The selected mode is saved and switching keeps the selected date and existing entries.
 - **Barcode Scanner**: Fast nutrition lookup powered by Google Code Scanner / ML Kit and Open Food Facts.
 - **Hydration Tracker & Shopping List**: Fluid intake logger and monthly grocery aggregation.
 - **Custom Meal Builder**: Add any number of scanned or manual ingredients with exact gram weights. All 12 nutrition totals update immediately. Done saves the recipe, ingredient list and total weight to the Library; select it later to log any gram serving. Missing label nutrients are shown as Unknown. For liquid labels, enter the weight of 100ml to convert ml nutrition to grams.
+- **Nutrition History**: Use History or the date picker in Nutrition to open earlier entries, see the day's foods and totals, and add missed entries. Past days use your current profile targets for comparison.
+- **Meal Prep**: Select a future date and add planned meals, or use Copy to Coming Days to prepare 1–7 days from the selected day. Existing plans are protected unless replacement is selected. Plans retain ingredient details and exact serving nutrition, and only enter eaten totals when marked Eaten on or after their date.
 
 ### ⚡ Activity & Recovery Readiness
 - **Hardware Pedometer Integration**: Real-time step tracking, distance calculation, active calorie burn estimation, and weekly trend graphs.
 - **Vehicle Detection Recovery**: Fresh activity checks and walking/running transitions clear missed vehicle exits. Unconfirmed driving state expires after five minutes. “I'm not driving” resumes steps with a two-minute grace period against repeated false detection.
+- **Machine Display Photos**: Activity → Read a Machine Display takes a camera or gallery image and reads labelled steps, kcal, distance and duration. Review and edit the detected readings before adding them to today's training. Missing readings remain blank. Reusing the same image on the same day is blocked. Adding steps to the daily counter is optional, to avoid counting steps already detected by the phone. Machine calories are listed separately from estimated walking calories.
 - **Sleep & Recovery Scoring**: Sleep duration, sleep debt calculations, bedtime/wake-time logs, restorative quality metrics, and sleep hygiene checklist.
+
+### First-use Guide
+- New users receive a ten-step tutorial after setup. It dims other areas, highlights each control, and asks users to open the main tabs themselves. Use **? Guide** in the header to replay it; Back and Skip Tour are available throughout.
+
+### Photo Reader Availability
+- Android bundles Google ML Kit text recognition for local, offline machine display reading. Camera access is requested when taking a photo; Choose Photo uses Android's photo picker.
+- The standalone HTML uses Tesseract.js. Its first use requires internet access to download the reader and English model; photos are processed in the browser. If the download fails or the display cannot be read, enter the values manually. Clear photos of a final results screen with visible labels and units work best.
 
 ### 📸 On-Device Physique Tracking & Computer Vision
 - **Privacy-First Physique Analysis**: On-device pose detection and silhouette segmentation powered by Google ML Kit (Pose Detection & Selfie Segmentation). Photos never leave the device.
@@ -46,6 +58,7 @@
   - Google ML Kit Barcode Scanning (`barcode-scanning`)
   - Google ML Kit Pose Detection Accurate (`pose-detection-accurate`)
   - Google ML Kit Subject / Selfie Segmentation (`subject-segmentation`, `segmentation-selfie`)
+  - Google ML Kit Text Recognition (`text-recognition`, bundled Latin model)
 - **Build System**: Gradle 8.8 with Kotlin DSL (`build.gradle.kts`), Android Gradle Plugin (AGP) 8.4.2
 
 ---
@@ -126,9 +139,9 @@ Ghosty Gains/
 
 ### Regression checks
 
-Run `node --test tools/workout_nutrition.test.cjs` for workout and nutrition calculations, and `.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug` for the Android recovery policy tests and APK build.
+Run `node --test tools/workout_nutrition.test.cjs tools/daily_planning.test.cjs tools/supplements.test.cjs` for workout, nutrition, calendar, meal prep, machine reading, supplement migration and conditional guidance checks, and `.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug` for the Android recovery policy tests and APK build.
 
-`node tools/app_ui.test.cjs` checks both HTML entry points in a real browser, including RPE presets, saved recipes, serving sizes, barcode nutrients and the native recovery button. It requires `playwright-core` on the Node module path and Microsoft Edge; set `BROWSER_PATH` to use another installed Chromium browser.
+`node tools/app_ui.test.cjs` checks both HTML entry points in a real browser, including workout completion by click, touch and keyboard, saved checks, RPE presets, recipes, serving sizes, barcode nutrients, nutrition history, seven-day meal prep, the guided tutorial, supplement choices and daily resets, plan suggestions and machine photo review. Photo OCR is stubbed in this repeatable UI suite; the Android bridge simulation covers stale callbacks, cancellation, permission denial and camera errors. It requires `playwright-core` on the Node module path and Microsoft Edge; set `BROWSER_PATH` to use another installed Chromium browser. Set `UI_SCREENSHOT_DIR` to save mobile tutorial and supplement screenshots. Real Android camera capture and OCR should also be checked on a phone.
 
 The project includes a GitHub Actions workflow (`.github/workflows/release.yml`) configured to automatically build and attach APKs:
 - **Trigger**: Creating and publishing a new release tag in GitHub or dispatching manually from the Actions tab.

@@ -43,12 +43,16 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.security.MessageDigest
 import kotlin.math.sqrt
 
 class MainActivity : AppCompatActivity(), SensorEventListener {
@@ -156,6 +160,87 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private val barcodeCameraPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) launchBarcodePhoto() else notifyWebviewBarcode(null, "cancelled")
+    }
+
+    private var machineCaptureUri: Uri? = null
+    private var machineCaptureToken = ""
+    private var machineReading = false
+    private val takeMachinePhotoLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        val uri = machineCaptureUri
+        machineCaptureUri = null
+        if (saved && uri != null) readMachinePhoto(uri, machineCaptureToken)
+        else {
+            discardMachineCapture(uri)
+            notifyMachinePhoto(machineCaptureToken, "cancelled")
+        }
+    }
+    private val pickMachinePhotoLauncher = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) readMachinePhoto(uri, machineCaptureToken)
+        else notifyMachinePhoto(machineCaptureToken, "cancelled")
+    }
+    private val machineCameraPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchMachineCamera() else notifyMachinePhoto(machineCaptureToken, "permission")
+    }
+
+    private fun notifyMachinePhoto(token: String, status: String, text: String = "", lines: JSONArray = JSONArray(), fingerprint: String = "") {
+        machineReading = false
+        val payload = JSONObject().put("token", token).put("status", status).put("text", text)
+            .put("lines", lines).put("fingerprint", fingerprint)
+        evalJs("if (typeof window.onMachinePhotoResult === 'function') window.onMachinePhotoResult(${payload});")
+    }
+
+    private fun launchMachineCamera() {
+        try {
+            val directory = File(cacheDir, "captures").apply { mkdirs() }
+            val file = File(directory, "machine_${System.currentTimeMillis()}.jpg")
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+            machineCaptureUri = uri
+            takeMachinePhotoLauncher.launch(uri)
+        } catch (_: Exception) {
+            discardMachineCapture(machineCaptureUri)
+            machineCaptureUri = null
+            notifyMachinePhoto(machineCaptureToken, "error")
+        }
+    }
+
+    private fun discardMachineCapture(uri: Uri?) {
+        if (uri?.authority == "$packageName.fileprovider") {
+            try { contentResolver.delete(uri, null, null) } catch (_: Exception) {}
+        }
+    }
+
+    private fun readMachinePhoto(uri: Uri, token: String) {
+        analysisExecutor.execute {
+            try {
+                val digest = MessageDigest.getInstance("SHA-256")
+                contentResolver.openInputStream(uri)?.use { input ->
+                    val buffer = ByteArray(8192)
+                    var count = input.read(buffer)
+                    while (count >= 0) { if (count > 0) digest.update(buffer, 0, count); count = input.read(buffer) }
+                }
+                val fingerprint = digest.digest().joinToString("") { "%02x".format(it) }
+                val image = InputImage.fromFilePath(applicationContext, uri)
+                val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                recognizer.process(image)
+                    .addOnSuccessListener { result ->
+                        val lines = JSONArray()
+                        result.textBlocks.flatMap { it.lines }.forEach { line ->
+                            val box = line.boundingBox
+                            lines.put(JSONObject().put("text", line.text).put("x", box?.centerX() ?: 0)
+                                .put("y", box?.centerY() ?: 0).put("width", box?.width() ?: 0).put("height", box?.height() ?: 0))
+                        }
+                        notifyMachinePhoto(token, "ok", result.text, lines, fingerprint)
+                    }
+                    .addOnFailureListener { notifyMachinePhoto(token, "error") }
+                    .addOnCompleteListener {
+                        recognizer.close()
+                        discardMachineCapture(uri)
+                    }
+            } catch (_: Exception) {
+                discardMachineCapture(uri)
+                notifyMachinePhoto(token, "error")
+            }
+        }
     }
 
     companion object {
@@ -802,6 +887,20 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         @JavascriptInterface
         fun takeProgressPhoto(source: String, pose: String) {
             runOnUiThread { startProgressPhoto(source, pose) }
+        }
+
+        @JavascriptInterface
+        fun readWorkoutMachinePhoto(source: String, token: String) {
+            runOnUiThread {
+                if (machineReading) return@runOnUiThread
+                machineReading = true
+                machineCaptureToken = token.take(100)
+                try {
+                    if (source == "gallery") pickMachinePhotoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    else if (hasCameraPermission()) launchMachineCamera()
+                    else machineCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                } catch (_: Exception) { notifyMachinePhoto(machineCaptureToken, "error") }
+            }
         }
 
         @JavascriptInterface

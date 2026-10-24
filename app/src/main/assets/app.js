@@ -3,6 +3,8 @@
   'use strict';
   const { nutrients: MEAL_NUTRIENTS, styles: TRAINING_STYLES, prescription: rpePrescription,
     scaleNutrition, mealTotals } = window.GhostyLogic;
+  const { validDate, shiftDate, copyMealPlans, parseMachineDisplay, validateMachineMetrics } = window.GhostyDaily;
+  const { normalize: normalizeSupplements, suggestions: supplementSuggestions } = window.GhostySupplements;
   const styleForGoal = goal => goal === 'strongman' ? 'strength' : ['get_fit', 'fatloss', 'stay_same'].includes(goal) ? 'fitness' : 'bodybuilding';
 
   // --- Audio / Haptic Feedback ---
@@ -638,14 +640,6 @@
     }
   };
 
-  const DEFAULT_SUPPLEMENTS = [
-    { id: 'vitd', name: 'Vitamin D3 (10–25 µg / 400–1000 IU)', desc: 'Daily with meal (essential in UK autumn/winter & indoor training)', checked: false },
-    { id: 'creatine', name: 'Creatine Monohydrate (3–5 g)', desc: 'Daily power & muscle fullness, take with water or shake', checked: false },
-    { id: 'whey', name: 'Whey Protein (1 Scoop / 25–30 g)', desc: 'Post-workout or snack to hit daily protein target', checked: false },
-    { id: 'omega3', name: 'Omega-3 / Fish Oil', desc: 'Joint lubrication & cardiovascular recovery', checked: false },
-    { id: 'multi', name: 'Multivitamin & Minerals', desc: 'Micronutrient support & immune function', checked: false }
-  ];
-
   const DEFAULT_SLEEP_HYGIENE = [
     { id: 'caffeine', text: '☕ No caffeine within 6–8 hours of bedtime', checked: false },
     { id: 'screens', text: '📱 Blue light filter / screens off 30 min before bed', checked: false },
@@ -904,7 +898,7 @@
         if (!parsed.shoppingChecked) parsed.shoppingChecked = {};
         if (!parsed.customShoppingItems) parsed.customShoppingItems = [];
         if (!parsed.weightLogs) parsed.weightLogs = [];
-        if (!parsed.supplements) parsed.supplements = defaults.supplements;
+        parsed.supplements = normalizeSupplements(parsed.supplements);
         if (!parsed.scannedHistory) parsed.scannedHistory = [];
         if (!parsed.lastStepDate) parsed.lastStepDate = getTodayString();
         if (!parsed.lastActiveWeek) parsed.lastActiveWeek = weekKey();
@@ -950,6 +944,9 @@
             });
           }
         }
+        if (!Array.isArray(parsed.mealPlans)) parsed.mealPlans = [];
+        if (!Array.isArray(parsed.machineWorkouts)) parsed.machineWorkouts = [];
+        if (parsed.tutorialCompleted === undefined) parsed.tutorialCompleted = !!parsed.setupComplete;
         if (!parsed.lastActiveDate) parsed.lastActiveDate = getTodayString();
         return parsed;
   }
@@ -977,11 +974,14 @@
       nutritionMode: 'simple',
       foodLibrary: JSON.parse(JSON.stringify(OFFLINE_FOODS_DB)),
       mealLogs: [],
+      mealPlans: [],
+      machineWorkouts: [],
+      tutorialCompleted: false,
       menu: JSON.parse(JSON.stringify(DEFAULT_MENU)),
       shoppingChecked: {},
       customShoppingItems: [],
       weightLogs: [],
-      supplements: JSON.parse(JSON.stringify(DEFAULT_SUPPLEMENTS)),
+      supplements: normalizeSupplements(),
       stepGoal: 10000,
       stepsToday: 0,
       lastStepDate: getTodayString(),
@@ -1111,6 +1111,7 @@
   }
 
   function switchSubview(parentTab, subviewId) {
+    if (subviewId === 'subview-supps') renderSupplements();
     const parent = $('tab-' + parentTab);
     if (!parent) return;
 
@@ -1125,6 +1126,7 @@
   }
 
   window.handleAndroidBack = () => {
+    if (tutorialStep >= 0) { endTutorial(); return 'handled'; }
     // Check if any modal is open
     const openModal = document.querySelector('.modal-overlay.active');
     if (openModal) {
@@ -1179,6 +1181,7 @@
     // Suggested sets/reps depend on the goal
     if ($('bodymap-svg')) renderFocusExercises();
     renderNutrition();
+    renderSupplements();
     if (intensityChanged) changeTrainingIntensity(state.trainingStyle);
     saveState();
   }
@@ -1265,6 +1268,7 @@
     state.profile.calorieTarget = targetKcal;
     state.profile.proteinTarget = protG;
     saveState();
+    renderSupplements();
   }
 
   const suggestedRoundedKcal = kcal => Math.round(kcal / 10) * 10;
@@ -1443,6 +1447,7 @@
     document.querySelectorAll('.timer-preset-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.sec) === p.rest));
     renderWorkouts();
     renderFocusExercises();
+    renderSupplements();
   }
 
   // Build a view of the plan; keep the user's original exercises available when effort changes.
@@ -1587,19 +1592,28 @@
         const isDone = !!state.completedExercises[ex.id];
         item.className = 'exercise-item' + (isDone ? ' completed' : '');
 
-        const check = document.createElement('div');
+        const checkControl = document.createElement('label');
+        checkControl.className = 'exercise-check-control';
+        const check = document.createElement('input');
+        check.type = 'checkbox';
         check.className = 'exercise-check';
-        check.innerHTML = isDone ? '✓' : '';
-        check.onclick = e => {
+        check.checked = isDone;
+        check.setAttribute('aria-label', `Completed: ${view.name}`);
+        check.onchange = e => {
           e.stopPropagation();
-          state.completedExercises[ex.id] = !state.completedExercises[ex.id];
+          const done = check.checked;
+          state.completedExercises[ex.id] = done;
           // Keeps a training history so progress photos can show what was worked on
-          logWorkoutTick({ id: ex.id, name: view.name }, state.completedExercises[ex.id]);
+          logWorkoutTick({ id: ex.id, name: view.name }, done);
           saveState();
-          triggerVibrate(isDone ? 20 : 60);
-          if (!isDone) playBeep(920, 0.1);
-          renderWorkouts();
+          item.classList.toggle('completed', done);
+          const doneCount = displayedExercises.filter(exercise => state.completedExercises[exercise.id]).length;
+          subtitle.textContent = day.isRest ? 'Recovery day'
+            : `${doneCount} / ${displayedExercises.length} exercises done this week · RPE ${trainingPrescription().rpe}`;
+          triggerVibrate(done ? 60 : 20);
+          if (done) playBeep(920, 0.1);
         };
+        checkControl.append(check);
 
         const info = document.createElement('div');
         info.className = 'exercise-info';
@@ -1667,7 +1681,7 @@
           actions.append(howBtn);
         }
         if (!view.auto) actions.append(editBtn, delBtn);
-        item.append(check, info, actions);
+        item.append(checkControl, info, actions);
         exList.append(item);
       });
 
@@ -1685,7 +1699,14 @@
       resetDayBtn.className = 'btn btn-outline btn-sm';
       resetDayBtn.innerHTML = '↺ Clear Checks';
       resetDayBtn.onclick = () => {
-        day.exercises.forEach(ex => delete state.completedExercises[ex.id]);
+        const ids = new Set([...day.exercises, ...views.map(entry => entry.ex)].map(ex => ex.id));
+        Object.keys(state.completedExercises).forEach(id => {
+          if (id.startsWith(`rpe_${day.id}_`)) ids.add(id);
+        });
+        ids.forEach(id => {
+          if (state.completedExercises[id]) logWorkoutTick({ id }, false);
+          delete state.completedExercises[id];
+        });
         saveState();
         renderWorkouts();
         showToast('Checks cleared for ' + day.dayName);
@@ -1712,6 +1733,12 @@
     if (modalId === 'modal-barcode') {
       stopBarcodeScanner();
       return;
+    }
+    if (modalId === 'modal-machine-import') {
+      machineRequestToken = null;
+      machineDraft = null;
+      if (machinePreviewUrl) URL.revokeObjectURL(machinePreviewUrl);
+      machinePreviewUrl = null;
     }
     const m = $(modalId);
     if (m) m.classList.remove('active');
@@ -1851,6 +1878,97 @@
   // --- Meal Planner, Simple/Pro Nutrition & Food Customizer Engine ---
   let currentLoggingSlot = 'breakfast';
   let simpleMealSeed = 0;
+  let selectedNutritionDate = getTodayString();
+  let nutritionFollowsToday = true;
+  let nutritionEntryMode = 'eaten';
+  const nutritionDate = () => nutritionFollowsToday ? getTodayString() : selectedNutritionDate;
+  const planningMeals = () => nutritionDate() > getTodayString() || nutritionEntryMode === 'planned';
+  const newEntryId = () => 'entry_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+
+  function selectNutritionDate(date) {
+    if (!validDate(date)) { showToast('Choose a valid nutrition date.'); return; }
+    selectedNutritionDate = date;
+    nutritionFollowsToday = date === getTodayString();
+    nutritionEntryMode = date > getTodayString() ? 'planned' : 'eaten';
+    simpleMealSeed = 0;
+    state.nutritionMode = 'pro';
+    renderNutrition();
+  }
+
+  function selectedMealEntries() {
+    const date = nutritionDate();
+    return [...state.mealLogs.filter(entry => entry.date === date), ...state.mealPlans.filter(entry => entry.date === date).map(entry => ({ ...entry, planned: true }))];
+  }
+
+  function selectedMacroEntries() {
+    return nutritionDate() > getTodayString()
+      ? state.mealPlans.filter(entry => entry.date === nutritionDate())
+      : state.mealLogs.filter(entry => entry.date === nutritionDate());
+  }
+
+  function addNutritionEntry(entry) {
+    entry.date = nutritionDate();
+    entry.planned = planningMeals();
+    (entry.planned ? state.mealPlans : state.mealLogs).unshift(entry);
+  }
+
+  function renderNutritionDates() {
+    const date = nutritionDate();
+    const future = date > getTodayString();
+    $('nutrition-date').value = date;
+    $('nutrition-entry-mode').value = planningMeals() ? 'planned' : 'eaten';
+    $('nutrition-entry-mode').disabled = future;
+    document.querySelectorAll('[data-water], #btn-water-undo').forEach(button => { button.disabled = future; });
+    $('nutrition-date-summary').textContent = `${date === getTodayString() ? 'Today' : new Date(date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · ${planningMeals() ? 'Add planned meals' : 'Log food eaten on this day'}`;
+    $('nutrition-calorie-label').textContent = future ? 'Planned Calories' : date === getTodayString() ? "Today's Calories" : 'Calories Eaten';
+    const plans = state.mealPlans.filter(entry => entry.date === date);
+    $('nutrition-planned-summary').textContent = plans.length
+      ? `${plans.length} planned meal${plans.length === 1 ? '' : 's'} · ${fmt(plans.reduce((total, entry) => total + (entry.calories || 0), 0))} kcal${future ? '. Review them below.' : ' · not included in eaten totals until marked eaten.'}` : 'Plan meals ahead, then mark each one eaten when you have it.';
+    $('btn-simple-autofill').textContent = planningMeals() ? '⚡ Plan Meals for This Day' : '⚡ Auto-Fill This Day’s Log';
+    $('btn-clear-daily-logs').textContent = '↺ Clear This Day';
+    document.querySelectorAll('.nutrition-destination').forEach(element => { element.textContent = `${planningMeals() ? 'Planning for' : 'Logging for'} ${date} · ${SLOT_NAMES[currentLoggingSlot]?.name || 'Meal'}`; });
+    document.querySelectorAll('.btn-log-single-simple').forEach(button => { button.textContent = planningMeals() ? '＋ Plan' : '＋ Log'; });
+  }
+
+  function showNutritionHistory() {
+    const box = $('nutrition-history-list');
+    box.replaceChildren();
+    const dates = [...new Set([...state.mealLogs, ...state.mealPlans].map(entry => entry.date).filter(date => validDate(date) && date <= getTodayString()))].sort().reverse();
+    if (!dates.length) box.innerHTML = '<p class="report-text">No saved nutrition entries yet. Your logged days will appear here.</p>';
+    dates.forEach(date => {
+      const entries = state.mealLogs.filter(entry => entry.date === date);
+      const plans = state.mealPlans.filter(entry => entry.date === date);
+      const button = document.createElement('button');
+      button.className = 'btn btn-outline nutrition-history-day';
+      button.textContent = `${date} · ${entries.length} eaten · ${fmt(entries.reduce((sum, entry) => sum + (entry.calories || 0), 0))} kcal · ${plans.length} planned`;
+      button.onclick = () => { selectNutritionDate(date); closeModal('modal-nutrition-history'); switchTab('nutrition'); };
+      box.append(button);
+    });
+    openModal('modal-nutrition-history');
+  }
+
+  function markPlannedMealEaten(id) {
+    const entry = state.mealPlans.find(item => item.id === id);
+    if (!entry || entry.date > getTodayString()) return;
+    state.mealPlans = state.mealPlans.filter(item => item.id !== id);
+    state.mealLogs.unshift({ ...entry, planned: false, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+    saveState();
+    renderNutrition();
+  }
+
+  function prepareComingDays() {
+    try {
+      const copies = copyMealPlans(selectedMealEntries(), $('copy-meals-start').value, Number($('copy-meals-days').value), getTodayString(), newEntryId);
+      const dates = new Set(copies.map(entry => entry.date));
+      if (state.mealPlans.some(entry => dates.has(entry.date)) && !$('copy-meals-replace').checked) throw new Error('Some of these days already have planned meals. Choose other dates or enable Replace existing planned meals.');
+      if ($('copy-meals-replace').checked) state.mealPlans = state.mealPlans.filter(entry => !dates.has(entry.date));
+      state.mealPlans.push(...copies);
+      saveState();
+      closeModal('modal-copy-meals');
+      selectNutritionDate(copies[0].date);
+      showToast('Your meal prep is saved for the selected days.');
+    } catch (error) { $('copy-meals-status').textContent = error.message; }
+  }
 
   const SLOT_NAMES = {
     breakfast: { name: 'Breakfast', icon: '🌅', label: '🌅 Breakfast' },
@@ -1955,7 +2073,7 @@
   }
 
   // Seed for "today" in Simple Mode: today's rotation day, shifted by the Swap button
-  const getTodayMealSeed = () => getRotationDayIndex() + simpleMealSeed;
+  const getTodayMealSeed = () => getRotationDayIndex(new Date(nutritionDate() + 'T12:00:00')) + simpleMealSeed;
 
   function getTodayMealLogs() {
     const today = getTodayString();
@@ -2091,8 +2209,7 @@
       entry.recipeWeight = food.totalWeight;
     }
 
-    if (!state.mealLogs) state.mealLogs = [];
-    state.mealLogs.unshift(entry);
+    addNutritionEntry(entry);
 
     // Save to food library if not already there
     if (!state.foodLibrary) state.foodLibrary = [];
@@ -2122,12 +2239,13 @@
     saveState();
     renderNutrition();
     triggerVibrate(60);
-    showToast(`Logged to ${SLOT_NAMES[slot]?.name || slot} (+${entry.calories} kcal)!`);
+    showToast(`${planningMeals() ? 'Planned' : 'Logged'} for ${nutritionDate()} · ${SLOT_NAMES[slot]?.name || slot} (+${entry.calories} kcal)`);
   }
 
   function removeMealLog(id) {
     if (!state.mealLogs) return;
     state.mealLogs = state.mealLogs.filter(x => x.id !== id);
+    state.mealPlans = state.mealPlans.filter(x => x.id !== id);
     saveState();
     renderNutrition();
     triggerVibrate(30);
@@ -2135,13 +2253,14 @@
   }
 
   function clearTodayMealLogs() {
-    if (!confirm('Clear all logged foods for today?')) return;
-    const today = getTodayString();
-    state.mealLogs = (state.mealLogs || []).filter(x => x.date !== today);
+    if (!confirm(`Clear all eaten and planned foods for ${nutritionDate()}?`)) return;
+    const date = nutritionDate();
+    state.mealLogs = state.mealLogs.filter(x => x.date !== date);
+    state.mealPlans = state.mealPlans.filter(x => x.date !== date);
     saveState();
     renderNutrition();
     triggerVibrate(60);
-    showToast('Today\'s meal logs cleared.');
+    showToast('The selected day’s meals were cleared.');
   }
 
   const PLAN_BRAND = 'Goal Auto-Pilot Plan';
@@ -2165,30 +2284,27 @@
   }
 
   function logPlanMeal(m) {
-    if (!state.mealLogs) state.mealLogs = [];
-    state.mealLogs.unshift(createPlanMealEntry(m));
+    addNutritionEntry(createPlanMealEntry(m));
     saveState();
     renderNutrition();
     triggerVibrate(60);
-    showToast(`Logged to ${SLOT_NAMES[m.slot]?.name || m.slot} (+${m.calories} kcal)!`);
+    showToast(`${planningMeals() ? 'Planned' : 'Logged'} for ${nutritionDate()} · ${SLOT_NAMES[m.slot]?.name || m.slot}`);
   }
 
   function logAllSimpleMeals() {
     const targetKcal = state.profile.calorieTarget || 2200;
     const targetP = state.profile.proteinTarget || 140;
     const meals = getSimpleSuggestedMeals(state.activeGoal, targetKcal, targetP, getTodayMealSeed());
-    const today = getTodayString();
-
-    // Re-running auto-fill replaces the earlier auto-filled plan instead of doubling the day
-    const hadPlan = (state.mealLogs || []).some(x => x.date === today && x.brand === PLAN_BRAND);
-    if (hadPlan && !confirm('Replace today\'s auto-filled meals with this plan?')) return;
-    state.mealLogs = (state.mealLogs || []).filter(x => !(x.date === today && x.brand === PLAN_BRAND));
-
-    meals.forEach(m => state.mealLogs.unshift(createPlanMealEntry(m)));
+    const date = nutritionDate();
+    const collection = planningMeals() ? 'mealPlans' : 'mealLogs';
+    const hadPlan = state[collection].some(x => x.date === date && x.brand === PLAN_BRAND);
+    if (hadPlan && !confirm(`Replace the auto-filled meals for ${date}?`)) return;
+    state[collection] = state[collection].filter(x => !(x.date === date && x.brand === PLAN_BRAND));
+    meals.forEach(m => addNutritionEntry(createPlanMealEntry(m)));
     saveState();
     renderNutrition();
     triggerVibrate(100);
-    showToast('⚡ Today\'s complete meal plan auto-filled!');
+    showToast(`Meals ${planningMeals() ? 'planned' : 'logged'} for ${date}.`);
   }
 
   window.openFoodLoggerForSlot = function(slot) {
@@ -2201,6 +2317,7 @@
     renderDailyMacroMeters();
     renderSimpleNutrition();
     renderProNutrition();
+    renderNutritionDates();
 
     const badge = $('saved-food-count-badge');
     if (badge) badge.textContent = (state.foodLibrary || []).length;
@@ -2219,7 +2336,7 @@
   }
 
   function renderDailyMacroMeters() {
-    const todayLogs = getTodayMealLogs();
+    const todayLogs = selectedMacroEntries();
     const targetKcal = state.profile.calorieTarget || 2200;
     const targetP = state.profile.proteinTarget || 140;
     const { carbs: targetC, fat: targetF } = getMacroTargets(targetKcal, targetP);
@@ -2263,7 +2380,7 @@
     if ($('macro-fill-f')) $('macro-fill-f').style.width = pctF + '%';
 
     // Water + logged drinks; ~35 ml per kg is a common daily guide
-    const today = getTodayString();
+    const today = nutritionDate();
     const fluidMl = (state.waterLogs || []).filter(w => w.date === today).reduce((t, w) => t + w.ml, 0)
       + todayLogs.filter(x => x.isDrink).reduce((t, x) => t + (x.grams || 0), 0);
     const fluidTarget = Math.round(toKg(state.profile.weight, state.profile.unit) * 35 / 250) * 250;
@@ -2311,7 +2428,7 @@
   }
 
   function renderProNutrition() {
-    const todayLogs = getTodayMealLogs();
+    const todayLogs = selectedMealEntries();
     const slots = ['breakfast', 'lunch', 'dinner', 'snack'];
 
     slots.forEach(slot => {
@@ -2343,7 +2460,7 @@
 
           row.innerHTML = `
             <div class="logged-food-main">
-              <div class="logged-food-name">${esc(item.name)}</div>
+              <div class="logged-food-name">${esc(item.name)}${item.planned ? ' · Planned' : ''}</div>
               <div class="logged-food-sub">${item.brand ? esc(item.brand) + ' · ' : ''}${item.portion ? esc(item.portion) : item.grams + 'g'} · ${esc(item.timestamp || '')}</div>
             </div>
             <div class="logged-food-macros">
@@ -2353,6 +2470,13 @@
           `;
 
           row.querySelector('.btn-remove-food').onclick = () => removeMealLog(item.id);
+          if (item.planned && item.date <= getTodayString()) {
+            const eaten = document.createElement('button');
+            eaten.className = 'btn btn-cyan btn-sm';
+            eaten.textContent = 'Mark Eaten';
+            eaten.onclick = () => markPlannedMealEaten(item.id);
+            row.querySelector('.logged-food-macros').append(eaten);
+          }
           container.append(row);
         });
       }
@@ -2372,11 +2496,11 @@
     };
 
     let sumKcal = 0, sumP = 0;
-    const startIdx = getRotationDayIndex();
+    const startIdx = getRotationDayIndex(new Date(nutritionDate() + 'T12:00:00'));
 
     // Day 1 is today; each following row is the next calendar day of the rotation
     for (let offset = 0; offset < 30; offset++) {
-      const date = new Date();
+      const date = new Date(nutritionDate() + 'T12:00:00');
       date.setDate(date.getDate() + offset);
       const seed = offset === 0 ? getTodayMealSeed() : startIdx + offset;
       const dayMeals = getSimpleSuggestedMeals(state.activeGoal, targetKcal, targetP, seed);
@@ -2649,36 +2773,94 @@
   function renderSupplements() {
     const container = $('supplements-container');
     container.replaceChildren();
-
-    state.supplements.forEach((s, idx) => {
+    const choices = $('supplement-choices');
+    choices.replaceChildren();
+    state.supplements.forEach(s => {
+      const label = document.createElement('label');
+      label.className = 'ob-check supplement-choice';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = s.selected;
+      input.dataset.supplement = s.id;
+      input.setAttribute('aria-label', `I take ${s.name}`);
+      input.onchange = () => {
+        s.selected = input.checked;
+        if (!s.selected) s.checked = false;
+        saveState();
+        renderSupplements();
+      };
+      const name = document.createElement('span');
+      name.textContent = s.name;
+      label.append(input, name);
+      choices.append(label);
+    });
+    const selected = state.supplements.filter(s => s.selected);
+    $('supplement-progress').textContent = `${selected.filter(s => s.checked).length} / ${selected.length} taken today`;
+    if (!selected.length) {
+      const empty = document.createElement('p');
+      empty.className = 'report-text';
+      empty.textContent = 'Select the supplements you take above to create your daily checklist.';
+      container.append(empty);
+    }
+    selected.forEach(s => {
       const item = document.createElement('div');
-      item.className = 'supp-item';
-
-      const check = document.createElement('div');
-      check.className = 'checkbox-custom' + (s.checked ? ' checked' : '');
-      check.style.marginRight = '12px';
-      check.innerHTML = s.checked ? '✓' : '';
-      check.onclick = () => {
-        s.checked = !s.checked;
+      item.className = 'supp-item' + (s.checked ? ' taken' : '');
+      item.dataset.supplement = s.id;
+      const label = document.createElement('label');
+      label.className = 'supp-taken-control';
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.checked = s.checked;
+      check.setAttribute('aria-label', `Taken today: ${s.name}`);
+      check.onchange = () => {
+        s.checked = check.checked;
         saveState();
         triggerVibrate(20);
         renderSupplements();
       };
-
+      label.append(check, document.createTextNode('Taken today'));
       const info = document.createElement('div');
       info.className = 'supp-info';
-      info.style.flex = '1';
-
       const h4 = document.createElement('h4');
       h4.textContent = s.name;
-      if (s.checked) h4.style.textDecoration = 'line-through';
-
       const p = document.createElement('p');
       p.textContent = s.desc;
-
       info.append(h4, p);
-      item.append(check, info);
+      item.append(info, label);
       container.append(item);
+    });
+    renderSupplementSuggestions();
+  }
+
+  function renderSupplementSuggestions() {
+    const goal = GOAL_PRESETS[state.activeGoal] || GOAL_PRESETS.bodybuilding;
+    const style = TRAINING_STYLES[state.trainingStyle] || TRAINING_STYLES.bodybuilding;
+    $('supplement-plan-context').textContent = `${goal.name} · ${style.name} · RPE ${trainingPrescription().rpe}`;
+    const list = $('supplement-suggestions');
+    list.replaceChildren();
+    supplementSuggestions({ goal: state.activeGoal, style: state.trainingStyle, rpe: state.trainingRpe, profile: state.profile }).forEach(advice => {
+      const supplement = state.supplements.find(s => s.id === advice.id);
+      if (!supplement) return;
+      const row = document.createElement('div');
+      row.className = 'supp-suggestion';
+      row.dataset.supplement = supplement.id;
+      const title = document.createElement('h4');
+      title.textContent = supplement.name;
+      const status = document.createElement('span');
+      status.className = 'supp-advice-level';
+      status.textContent = advice.level;
+      const reason = document.createElement('p');
+      reason.className = 'report-text';
+      reason.textContent = advice.reason;
+      const choose = document.createElement('button');
+      choose.className = 'btn btn-outline btn-sm';
+      choose.textContent = supplement.selected ? 'In My Supplements' : 'I Take This';
+      choose.disabled = supplement.selected;
+      choose.setAttribute('aria-label', `I take ${supplement.name}`);
+      choose.onclick = () => { supplement.selected = true; saveState(); renderSupplements(); };
+      title.append(status);
+      row.append(title, reason, choose);
+      list.append(row);
     });
   }
 
@@ -2993,6 +3175,7 @@
     $('modal-barcode').classList.add('active');
     $('scanned-result-container').replaceChildren();
     $('scanner-loading').style.display = 'none';
+    renderNutritionDates();
   }
 
   // Main "Scan Barcode" action: use Google's on-device scanner when the Android shell has it,
@@ -3560,7 +3743,7 @@
       btn.onclick = () => {
         currentLoggingSlot = btn.dataset.slot;
         slotButtons.forEach(b => b.classList.toggle('active', b === btn));
-        btnLogMeal.textContent = `➕ Log to ${SLOT_NAMES[currentLoggingSlot]?.name || 'Meal'}`;
+        btnLogMeal.textContent = `${planningMeals() ? '＋ Plan' : '➕ Log'} to ${SLOT_NAMES[currentLoggingSlot]?.name || 'Meal'}`;
         triggerVibrate(20);
       };
     });
@@ -3573,7 +3756,7 @@
     const btnLogMeal = document.createElement('button');
     btnLogMeal.className = 'btn btn-cyan btn-sm';
     btnLogMeal.style.flex = '1';
-    btnLogMeal.textContent = `➕ Log to ${SLOT_NAMES[currentLoggingSlot]?.name || 'Meal'}`;
+    btnLogMeal.textContent = `${planningMeals() ? '＋ Plan' : '➕ Log'} to ${SLOT_NAMES[currentLoggingSlot]?.name || 'Meal'}`;
     btnLogMeal.onclick = () => {
       if (!(portionBase > 0)) {
         alert('Enter how much you had.');
@@ -3984,6 +4167,7 @@
     pendingCustomFoodCode = prefill.code || null;
     $('modal-custom-food').classList.add('active');
     $('custom-food-name').value = prefill.name || '';
+    $('btn-save-custom-food').textContent = planningMeals() ? 'Save & Plan Food' : 'Save & Log Food';
     $('custom-food-brand').value = '';
     customFoodPerServing = true;
     $('custom-food-servings-now').value = 1;
@@ -4921,7 +5105,8 @@
     document.querySelectorAll('[data-water]').forEach(btn => {
       btn.onclick = () => {
         if (!state.waterLogs) state.waterLogs = [];
-        state.waterLogs.push({ id: 'w_' + Date.now(), date: getTodayString(), ml: parseInt(btn.dataset.water, 10) });
+        if (nutritionDate() > getTodayString()) return;
+        state.waterLogs.push({ id: 'w_' + Date.now(), date: nutritionDate(), ml: parseInt(btn.dataset.water, 10) });
         if (state.waterLogs.length > 400) state.waterLogs.splice(0, state.waterLogs.length - 400);
         saveState();
         renderDailyMacroMeters();
@@ -4930,7 +5115,7 @@
     });
     if ($('btn-water-undo')) {
       $('btn-water-undo').onclick = () => {
-        const today = getTodayString();
+        const today = nutritionDate();
         const idx = (state.waterLogs || []).map(w => w.date).lastIndexOf(today);
         if (idx >= 0) {
           state.waterLogs.splice(idx, 1);
@@ -4967,21 +5152,21 @@
 
     if ($('btn-copy-daily-macros')) {
       $('btn-copy-daily-macros').onclick = () => {
-        const todayLogs = getTodayMealLogs();
+        const todayLogs = selectedMealEntries();
         const targetKcal = state.profile.calorieTarget || 2200;
         const totK = todayLogs.reduce((s, x) => s + (x.calories || 0), 0);
         const totP = todayLogs.reduce((s, x) => s + (x.protein || 0), 0);
         const totC = todayLogs.reduce((s, x) => s + (x.carbs || 0), 0);
         const totF = todayLogs.reduce((s, x) => s + (x.fat || 0), 0);
 
-        let summary = `Ghosty Gains Nutrition Log (${getTodayString()}):\n`;
+        let summary = `Ghosty Gains Nutrition Diary (${nutritionDate()}):\n`;
         summary += `Total: ${totK} / ${targetKcal} kcal | ${totP}g Protein | ${totC}g Carbs | ${totF}g Fats\n\n`;
 
         ['breakfast', 'lunch', 'dinner', 'snack'].forEach(slot => {
           const sLogs = todayLogs.filter(x => x.slot === slot);
           summary += `${SLOT_NAMES[slot]?.name || slot}:\n`;
           if (sLogs.length === 0) summary += `  (No foods logged)\n`;
-          else sLogs.forEach(i => summary += `  • ${i.name} (${i.grams}g) - ${i.calories} kcal, ${i.protein}g P\n`);
+          else sLogs.forEach(i => summary += `  • ${i.planned ? '[Planned] ' : ''}${i.name} (${i.grams}g) - ${i.calories} kcal, ${i.protein}g P\n`);
         });
 
         copyText(summary, 'Day summary copied to clipboard!');
@@ -4993,8 +5178,8 @@
     if ($('btn-add-to-dinner')) $('btn-add-to-dinner').onclick = () => openFoodLoggerForSlot('dinner');
     if ($('btn-add-to-snack')) $('btn-add-to-snack').onclick = () => openFoodLoggerForSlot('snack');
 
-    // Sub-Navigation Segmented Buttons
-    document.querySelectorAll('.subnav-btn').forEach(btn => {
+    // Only generic subviews belong here; nutrition modes have their own handlers above.
+    document.querySelectorAll('.subnav-btn[data-subview]').forEach(btn => {
       btn.onclick = () => {
         const subviewId = btn.dataset.subview;
         const parentTab = btn.closest('.tab-view')?.id?.replace('tab-', '');
@@ -6418,12 +6603,285 @@
     });
   }
 
+  // --- Machine display photo import ---
+  let machineDraft = null;
+  let machineRequestToken = null;
+  let machineNativeBusy = false;
+  let machinePreviewUrl = null;
+  let browserOcrPromise = null;
+  const machineFields = { steps: 'machine-steps', calories: 'machine-calories', distanceKm: 'machine-distance', minutes: 'machine-minutes' };
+
+  function machineMetricsText(metrics) {
+    return Object.entries({ steps: 'steps', calories: 'kcal', distanceKm: 'km', minutes: 'min' })
+      .filter(([key]) => metrics[key] != null)
+      .map(([key, unit]) => `${Number(Number(metrics[key]).toFixed(2))} ${unit}`).join(' · ');
+  }
+
+  function renderMachineWorkouts() {
+    const sessions = state.machineWorkouts.filter(session => session.date === getTodayString());
+    const totals = Object.fromEntries(Object.keys(machineFields).map(key => [key, sessions.some(session => session[key] != null)
+      ? sessions.reduce((sum, session) => sum + (session[key] || 0), 0) : null]));
+    $('machine-daily-totals').textContent = sessions.length ? `Today: ${machineMetricsText(totals)}` : 'No machine workouts saved today.';
+    $('workout-machine-summary').textContent = sessions.length ? `Machine training today: ${machineMetricsText(totals)} · ${sessions.length} session${sessions.length === 1 ? '' : 's'}` : '';
+    const list = $('machine-workout-list');
+    list.replaceChildren();
+    [...sessions].reverse().forEach(session => {
+      const row = document.createElement('div');
+      row.className = 'machine-session';
+      row.innerHTML = `<strong>${esc(session.name)}</strong><p class="report-text">${esc(machineMetricsText(session))}</p><p class="report-text">${session.stepsAdded ? 'Steps added to daily counter.' : 'Daily step counter unchanged.'}</p>`;
+      const remove = document.createElement('button');
+      remove.className = 'btn btn-outline btn-sm';
+      remove.textContent = 'Remove Session';
+      remove.onclick = () => {
+        if (!confirm('Remove this machine workout? Steps added from this session will also be removed from today’s counter.')) return;
+        state.machineWorkouts = state.machineWorkouts.filter(item => item.id !== session.id);
+        if (session.stepsAdded && session.date === getTodayString()) {
+          updateSteps(state.lastStepDate === getTodayString() ? Math.max(0, state.stepsToday - session.steps) : 0);
+        }
+        saveState();
+        renderMachineWorkouts();
+      };
+      row.append(remove);
+      list.append(row);
+    });
+  }
+
+  function openMachineImport() {
+    machineDraft = { id: newEntryId(), date: getTodayString(), fingerprint: '' };
+    machineRequestToken = null;
+    Object.values(machineFields).forEach(id => { $(id).value = ''; });
+    $('machine-name').value = 'Treadmill';
+    $('machine-add-steps').checked = false;
+    $('machine-import-error').textContent = '';
+    $('machine-photo-status').textContent = 'Take or choose a clear photo of the results screen, or enter the values below.';
+    $('machine-photo-preview').style.display = 'none';
+    setMachineReading(false);
+    openModal('modal-machine-import');
+  }
+
+  function setMachineReading(reading) {
+    ['btn-machine-camera', 'btn-machine-gallery', 'btn-save-machine-workout'].forEach(id => { $(id).disabled = reading; });
+  }
+
+  function applyMachineReading(text, boxes, fingerprint) {
+    const values = parseMachineDisplay(text, boxes);
+    Object.entries(machineFields).forEach(([key, id]) => { $(id).value = values[key] == null ? '' : String(Number(values[key].toFixed(3))); });
+    machineDraft.fingerprint = fingerprint;
+    const type = String(text).match(/treadmill|elliptical|stair\s*(?:climber|master)|rowing|rower|exercise bike|cycling/i);
+    if (type) $('machine-name').value = type[0];
+    const count = Object.values(values).filter(value => value != null).length;
+    $('machine-photo-status').textContent = count ? 'Display read. Check every value and fill in anything missing before adding the workout.' : 'No labelled workout values found. Try a closer photo of the results screen or enter the readings below.';
+  }
+
+  function chooseMachinePhoto(source) {
+    if (window.AndroidApp && typeof window.AndroidApp.readWorkoutMachinePhoto === 'function') {
+      if (machineNativeBusy) { $('machine-photo-status').textContent = 'Finish the current photo capture before starting another.'; return; }
+      machineRequestToken = newEntryId();
+      Object.values(machineFields).forEach(id => { $(id).value = ''; });
+      machineDraft.fingerprint = '';
+      $('machine-add-steps').checked = false;
+      machineNativeBusy = true;
+      setMachineReading(true);
+      $('machine-photo-status').textContent = 'Reading the display on this device…';
+      try { window.AndroidApp.readWorkoutMachinePhoto(source, machineRequestToken); }
+      catch (_) { machineNativeBusy = false; machineRequestToken = null; setMachineReading(false); $('machine-photo-status').textContent = 'Could not open the camera. Enter the readings below or try another photo.'; }
+      return;
+    }
+    const input = $('machine-photo-file');
+    input.value = '';
+    if (source === 'camera') input.setAttribute('capture', 'environment'); else input.removeAttribute('capture');
+    input.click();
+  }
+
+  window.onMachinePhotoResult = payload => {
+    machineNativeBusy = false;
+    if (!machineDraft || payload.token !== machineRequestToken) return;
+    machineRequestToken = null;
+    setMachineReading(false);
+    if (payload.status === 'ok') applyMachineReading(payload.text, payload.lines || [], payload.fingerprint || '');
+    else $('machine-photo-status').textContent = payload.status === 'cancelled' ? 'Photo cancelled. Choose another photo or enter the values.' : payload.status === 'permission' ? 'Allow camera access or use Choose Photo. You can also enter the values below.' : 'Could not read the display. Try a clearer photo or enter the values below.';
+  };
+
+  function browserOcr() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (!browserOcrPromise) browserOcrPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      const timeout = setTimeout(() => { script.remove(); browserOcrPromise = null; reject(new Error('Photo reading needs an internet connection for its first download.')); }, 20000);
+      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+      script.onload = () => { clearTimeout(timeout); resolve(window.Tesseract); };
+      script.onerror = () => { clearTimeout(timeout); script.remove(); browserOcrPromise = null; reject(new Error('Photo reader unavailable. Enter the display values below.')); };
+      document.head.append(script);
+    });
+    return browserOcrPromise;
+  }
+
+  async function readBrowserMachinePhoto(file) {
+    if (!file || !machineDraft) return;
+    if (!file.type.startsWith('image/') || file.size > 25 * 1024 * 1024) { $('machine-photo-status').textContent = 'Choose an image smaller than 25 MB.'; return; }
+    const token = machineRequestToken = newEntryId();
+    Object.values(machineFields).forEach(id => { $(id).value = ''; });
+    machineDraft.fingerprint = '';
+    $('machine-add-steps').checked = false;
+    if (machinePreviewUrl) URL.revokeObjectURL(machinePreviewUrl);
+    machinePreviewUrl = URL.createObjectURL(file);
+    $('machine-photo-preview').src = machinePreviewUrl;
+    $('machine-photo-preview').style.display = 'block';
+    $('machine-photo-status').textContent = 'Reading the display on this device. The browser may need to download the photo reader first…';
+    setMachineReading(true);
+    let worker;
+    let timeout;
+    let readingFinished = false;
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let hash = 2166136261;
+      for (const byte of bytes) hash = Math.imul(hash ^ byte, 16777619);
+      const reading = async () => {
+        const engine = await browserOcr();
+        if (readingFinished || token !== machineRequestToken) return null;
+        const createdWorker = await engine.createWorker('eng', 1, { workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js' });
+        if (readingFinished || token !== machineRequestToken) { await createdWorker.terminate(); return null; }
+        worker = createdWorker;
+        return worker.recognize(file);
+      };
+      const result = await Promise.race([reading(), new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('Reading took too long. Try a closer photo or enter the values below.')), 60000); })]);
+      if (result && token === machineRequestToken && machineDraft) applyMachineReading(result.data.text, [], `browser_${bytes.length}_${hash >>> 0}`);
+    } catch (error) {
+      if (token === machineRequestToken) $('machine-photo-status').textContent = error.message || 'Could not read this photo. Enter its values below.';
+    } finally {
+      readingFinished = true;
+      clearTimeout(timeout);
+      if (token === machineRequestToken) { machineRequestToken = null; setMachineReading(false); }
+      if (worker) { try { await worker.terminate(); } catch (_) {} }
+    }
+  }
+
+  function saveMachineWorkout() {
+    if (!machineDraft || machineRequestToken) return;
+    try {
+      const name = $('machine-name').value.trim();
+      if (!name) throw new Error('Enter a machine or workout name.');
+      const metrics = validateMachineMetrics(Object.fromEntries(Object.entries(machineFields).map(([key, id]) => [key, $(id).value])));
+      if (machineDraft.fingerprint && state.machineWorkouts.some(session => session.date === machineDraft.date && session.fingerprint === machineDraft.fingerprint)) throw new Error('This photo has already been added to this training day.');
+      const stepsAdded = !!(metrics.steps > 0 && $('machine-add-steps').checked);
+      if (stepsAdded && machineDraft.date !== getTodayString()) throw new Error('The day has changed. Reopen this form to add steps to today’s counter.');
+      const session = { ...machineDraft, ...metrics, name, stepsAdded, source: machineDraft.fingerprint ? 'photo' : 'manual' };
+      machineDraft = null;
+      state.machineWorkouts.push(session);
+      if (stepsAdded) updateSteps((state.lastStepDate === getTodayString() ? state.stepsToday : 0) + metrics.steps);
+      saveState();
+      closeModal('modal-machine-import');
+      renderMachineWorkouts();
+      showToast('Machine workout added to your training.');
+    } catch (error) { $('machine-import-error').textContent = error.message; }
+  }
+
+  // --- Guided app tutorial: actual tabs stay clickable inside the spotlight. ---
+  let tutorialStep = -1;
+  let tutorialFrame = null;
+  let tutorialReturnFocus = null;
+  const TUTORIAL_STEPS = [
+    { target: '#nav-workouts', click: true, title: 'Start with Workouts', text: 'This is your training plan. Tap the highlighted Workouts tab to see what to train today.' },
+    { target: '#workout-rpe', title: 'Choose your effort', text: 'RPE sets how close you train to failure. Higher RPE creates fewer exercises and working sets. Change the slider or use a training style preset when planning your session.', tab: 'workouts' },
+    { target: '#workout-days-container .exercise-item', title: 'Complete your exercises', text: 'Tick the box beside each finished exercise. Use the camera button for exercise instructions, and the pencil to edit your notes. Checks are saved and reset each new week.', tab: 'workouts' },
+    { target: '#nav-nutrition', click: true, title: 'Now open Nutrition', text: 'Tap Nutrition to track what you eat and prepare meals for the days ahead.' },
+    { target: '#nutrition-day-controls', title: 'History and meal prep', text: 'Choose any date to review past entries or plan a future day. Copy a day to the coming week. Prepared meals stay Planned until you mark them Eaten.', tab: 'nutrition' },
+    { target: '#nutrition-food-actions', title: 'Add your food', text: 'Scan packaging, search foods, or build a recipe from ingredients and exact gram weights. Your Library saves foods and recipes so you can log them again with any serving size.', tab: 'nutrition' },
+    { target: '#nav-activity', click: true, title: 'Open Activity', text: 'Tap Activity for your steps, machine workouts, sleep and recovery.' },
+    { target: '#machine-workout-card', title: 'Read a machine display', text: 'Photograph the final results screen, check the detected readings, then add the session. Add machine steps to the daily counter only if your phone has not counted them already.', tab: 'activity', subview: 'subview-steps' },
+    { target: '#nav-profile', click: true, title: 'Open Goals & Logs', text: 'Tap Goals & Logs to keep your personal targets and progress up to date.' },
+    { target: '#goal-pills-container', title: 'Make it your plan', text: 'Choose your goal and enter your own stats for suitable nutrition targets. You can log weight and progress here, adjust health preferences, and export a backup. Replay this tour any time with ? Guide.', tab: 'profile', subview: 'subview-goals' }
+  ];
+
+  function tutorialTarget() { return document.querySelector(TUTORIAL_STEPS[tutorialStep]?.target || '#btn-start-tutorial'); }
+
+  function positionTutorial() {
+    tutorialFrame = null;
+    if (tutorialStep < 0) return;
+    const target = tutorialTarget();
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const left = Math.max(0, rect.left - 5), top = Math.max(0, rect.top - 5);
+    const right = Math.min(width, rect.right + 5), bottom = Math.min(height, rect.bottom + 5);
+    const setBox = (id, x, y, w, h) => { $(id).style.cssText = `left:${x}px;top:${y}px;width:${Math.max(0, w)}px;height:${Math.max(0, h)}px;`; };
+    setBox('tutorial-shade-top', 0, 0, width, top);
+    setBox('tutorial-shade-bottom', 0, bottom, width, height - bottom);
+    setBox('tutorial-shade-left', 0, top, left, bottom - top);
+    setBox('tutorial-shade-right', right, top, width - right, bottom - top);
+    setBox('tutorial-highlight', left, top, right - left, bottom - top);
+    $('tutorial-highlight').style.pointerEvents = TUTORIAL_STEPS[tutorialStep].click ? 'none' : 'auto';
+    const card = $('tutorial-card');
+    const cardHeight = card.offsetHeight;
+    const cardTop = bottom + cardHeight + 12 < height ? bottom + 12 : Math.max(12, top - cardHeight - 12);
+    card.style.left = `${Math.max(12, Math.min(width - card.offsetWidth - 12, left))}px`;
+    card.style.top = `${Math.min(height - cardHeight - 12, cardTop)}px`;
+  }
+
+  function queueTutorialPosition() { if (tutorialStep >= 0 && tutorialFrame == null) tutorialFrame = requestAnimationFrame(positionTutorial); }
+
+  function showTutorialStep(index) {
+    if (index >= TUTORIAL_STEPS.length) { endTutorial(); return; }
+    tutorialStep = Math.max(0, index);
+    const step = TUTORIAL_STEPS[tutorialStep];
+    if (step.tab) switchTab(step.tab, step.subview);
+    $('app-tutorial').hidden = false;
+    $('tutorial-title').textContent = step.title;
+    $('tutorial-text').textContent = step.text;
+    $('tutorial-progress').textContent = `${tutorialStep + 1} / ${TUTORIAL_STEPS.length}`;
+    $('tutorial-instruction').textContent = step.click ? 'Tap the highlighted tab to continue.' : 'Select Next to continue.';
+    $('btn-tutorial-next').hidden = !!step.click;
+    $('btn-tutorial-next').textContent = tutorialStep === TUTORIAL_STEPS.length - 1 ? 'Finish Tour' : 'Next';
+    $('btn-tutorial-back').disabled = tutorialStep === 0;
+    const target = tutorialTarget();
+    target?.scrollIntoView({ block: 'center', behavior: 'instant' });
+    if (step.click) target?.focus({ preventScroll: true }); else $('btn-tutorial-next').focus({ preventScroll: true });
+    positionTutorial();
+    queueTutorialPosition();
+  }
+
+  function startTutorial() {
+    if ($('modal-onboarding').classList.contains('active')) return;
+    document.querySelectorAll('.modal-overlay.active').forEach(modal => closeModal(modal.id));
+    tutorialReturnFocus = document.activeElement;
+    showTutorialStep(0);
+  }
+
+  function endTutorial() {
+    tutorialStep = -1;
+    $('app-tutorial').hidden = true;
+    state.tutorialCompleted = true;
+    saveState();
+    if (tutorialReturnFocus?.isConnected) tutorialReturnFocus.focus({ preventScroll: true });
+  }
+
+  document.addEventListener('click', event => {
+    if (tutorialStep < 0 || !TUTORIAL_STEPS[tutorialStep].click) return;
+    if (event.target.closest(TUTORIAL_STEPS[tutorialStep].target)) {
+      const step = tutorialStep;
+      setTimeout(() => { if (tutorialStep === step) showTutorialStep(step + 1); }, 0);
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if (tutorialStep < 0) return;
+    if (event.key === 'Escape') { event.preventDefault(); endTutorial(); return; }
+    if (event.key !== 'Tab') return;
+    const controls = [...$('tutorial-card').querySelectorAll('button:not(:disabled):not([hidden])')];
+    if (TUTORIAL_STEPS[tutorialStep].click && tutorialTarget()) controls.unshift(tutorialTarget());
+    const index = controls.indexOf(document.activeElement);
+    event.preventDefault();
+    controls[(index + (event.shiftKey ? -1 : 1) + controls.length) % controls.length]?.focus({ preventScroll: true });
+  });
+  window.addEventListener('resize', queueTutorialPosition);
+  document.addEventListener('scroll', queueTutorialPosition, true);
+  document.addEventListener('animationend', queueTutorialPosition, true);
+
   // --- First-launch setup wizard ---
   let onboardStep = 0;
   const ONBOARD_STEPS = 4;
 
   function showOnboardingIfNeeded() {
-    if (state.setupComplete) return;
+    if (state.setupComplete) { if (!state.tutorialCompleted && tutorialStep < 0) startTutorial(); return; }
     openOnboarding();
   }
 
@@ -6575,6 +7033,7 @@
       state.setupComplete = true;
       saveState();
       $('modal-onboarding').classList.remove('active');
+      startTutorial();
     };
     $('ob-height-unit').onchange = () => {
       // Carry the height across when switching units
@@ -6618,6 +7077,7 @@
     renderSleepTracker();
     renderWorkouts();
     renderNutrition();
+    renderMachineWorkouts();
   }
 
   // Coming back to the app after midnight / a new week refreshes "today"
@@ -6630,6 +7090,31 @@
   });
 
   function initApp() {
+    $('nutrition-date').onchange = () => selectNutritionDate($('nutrition-date').value);
+    $('btn-nutrition-prev').onclick = () => selectNutritionDate(shiftDate(nutritionDate(), -1));
+    $('btn-nutrition-next').onclick = () => selectNutritionDate(shiftDate(nutritionDate(), 1));
+    $('btn-nutrition-today').onclick = () => selectNutritionDate(getTodayString());
+    $('nutrition-entry-mode').onchange = () => { nutritionEntryMode = $('nutrition-entry-mode').value; renderNutrition(); };
+    $('btn-nutrition-history').onclick = showNutritionHistory;
+    $('btn-copy-meal-day').onclick = () => {
+      $('copy-meals-start').value = shiftDate(getTodayString(), 1);
+      $('copy-meals-start').min = getTodayString();
+      $('copy-meals-days').value = '7';
+      $('copy-meals-replace').checked = false;
+      $('copy-meals-status').textContent = '';
+      openModal('modal-copy-meals');
+    };
+    $('btn-confirm-copy-meals').onclick = prepareComingDays;
+    document.querySelectorAll('[data-close-modal]').forEach(button => { button.onclick = () => closeModal(button.dataset.closeModal); });
+    $('btn-open-machine-import').onclick = openMachineImport;
+    $('btn-machine-camera').onclick = () => chooseMachinePhoto('camera');
+    $('btn-machine-gallery').onclick = () => chooseMachinePhoto('gallery');
+    $('machine-photo-file').onchange = event => readBrowserMachinePhoto(event.target.files[0]);
+    $('btn-save-machine-workout').onclick = saveMachineWorkout;
+    $('btn-start-tutorial').onclick = startTutorial;
+    $('btn-skip-tutorial').onclick = endTutorial;
+    $('btn-tutorial-next').onclick = () => showTutorialStep(tutorialStep + 1);
+    $('btn-tutorial-back').onclick = () => showTutorialStep(tutorialStep - 1);
     $('training-style').onchange = () => changeTrainingIntensity($('training-style').value);
     $('workout-rpe').oninput = () => changeTrainingIntensity();
     $('btn-open-meal-builder').onclick = openMealBuilder;
@@ -6686,6 +7171,7 @@
 
     renderStepTracker();
     renderSleepTracker();
+    renderMachineWorkouts();
   }
 
   document.addEventListener('DOMContentLoaded', initApp);
