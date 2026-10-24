@@ -371,6 +371,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         super.onResume()
         checkAndResetDailySteps()
         registerStepSensors()
+        VehicleDetector.register(applicationContext)
         mainHandler.post(syncRunnable)
     }
 
@@ -414,7 +415,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private fun applyStepCounterTotal(totalSensorSteps: Int) {
         lastSensorTotal = totalSensorSteps
-        if (VehicleDetector.isInVehicle(this)) {
+        val inVehicle = VehicleDetector.isInVehicle(this)
+        val reanchor = VehicleDetector.consumeReanchor(this)
+        if (inVehicle || reanchor) {
             // Hold the count still while driving. Moving the vehicle start point up too means
             // the receiver won't subtract these same steps again when the journey ends.
             initialStepOffset = totalSensorSteps - todaySteps
@@ -821,6 +824,16 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         @JavascriptInterface
         fun isInVehicle(): Boolean = VehicleDetector.isInVehicle(context)
+
+        @JavascriptInterface
+        fun clearVehicleDetection() {
+            runOnUiThread {
+                VehicleDetector.resumeWalking(applicationContext) {
+                    checkAndResetDailySteps()
+                    syncStepsNow()
+                }
+            }
+        }
 
         @JavascriptInterface
         fun saveStateBackup(json: String): Boolean = json.length > 2 && writeStateFile(json)

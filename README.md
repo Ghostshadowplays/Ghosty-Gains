@@ -10,6 +10,7 @@
 - **Tailored Training Splits**: Structured routines designed for muscle hypertrophy, joint health, and safe progression across various fitness levels and equipment access (Gym, Dumbbells/Home, Bodyweight).
 - **Interactive Muscle Focus Picker**: Visual SVG-based body map to target specific muscle groups and receive recommended exercises, form cues, and sets.
 - **Built-in Rest Timer & Custom Exercise Logging**: Configurable rest interval timer, form cue logging, and weekly completion tracking.
+- **RPE Workout Intensity**: A 1–10 slider adjusts exercise count, working sets, reps in reserve and rest. RPE 6 gives 5 exercises with 4 sets, RPE 7–8 gives 3–4 exercises with 3 sets, and RPE 9–10 gives 2–3 exercises with 2 sets. Training style presets choose a starting RPE; the slider remains adjustable. RPE 1–5 uses 5 exercises, 4 easy sets and longer rests. Recovery days stay as recovery days.
 
 ### 🥗 Nutrition & Macro Optimization
 - **Dual Mode Nutrition Tracking**:
@@ -17,9 +18,11 @@
   - **Pro Mode**: Granular logging by meal slot (Breakfast, Lunch, Dinner, Snacks) with custom food creations and UK takeaway estimates.
 - **Barcode Scanner**: Fast nutrition lookup powered by Google Code Scanner / ML Kit and Open Food Facts.
 - **Hydration Tracker & Shopping List**: Fluid intake logger and monthly grocery aggregation.
+- **Custom Meal Builder**: Add any number of scanned or manual ingredients with exact gram weights. All 12 nutrition totals update immediately. Done saves the recipe, ingredient list and total weight to the Library; select it later to log any gram serving. Missing label nutrients are shown as Unknown. For liquid labels, enter the weight of 100ml to convert ml nutrition to grams.
 
 ### ⚡ Activity & Recovery Readiness
 - **Hardware Pedometer Integration**: Real-time step tracking, distance calculation, active calorie burn estimation, and weekly trend graphs.
+- **Vehicle Detection Recovery**: Fresh activity checks and walking/running transitions clear missed vehicle exits. Unconfirmed driving state expires after five minutes. “I'm not driving” resumes steps with a two-minute grace period against repeated false detection.
 - **Sleep & Recovery Scoring**: Sleep duration, sleep debt calculations, bedtime/wake-time logs, restorative quality metrics, and sleep hygiene checklist.
 
 ### 📸 On-Device Physique Tracking & Computer Vision
@@ -120,6 +123,12 @@ Ghosty Gains/
 ---
 
 ## Automated Releases (CI/CD)
+
+### Regression checks
+
+Run `node --test tools/workout_nutrition.test.cjs` for workout and nutrition calculations, and `.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug` for the Android recovery policy tests and APK build.
+
+`node tools/app_ui.test.cjs` checks both HTML entry points in a real browser, including RPE presets, saved recipes, serving sizes, barcode nutrients and the native recovery button. It requires `playwright-core` on the Node module path and Microsoft Edge; set `BROWSER_PATH` to use another installed Chromium browser.
 
 The project includes a GitHub Actions workflow (`.github/workflows/release.yml`) configured to automatically build and attach APKs:
 - **Trigger**: Creating and publishing a new release tag in GitHub or dispatching manually from the Actions tab.

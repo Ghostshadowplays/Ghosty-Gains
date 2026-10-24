@@ -1,6 +1,9 @@
 /* Ghosty Gains - Mobile App Engine */
 (() => {
   'use strict';
+  const { nutrients: MEAL_NUTRIENTS, styles: TRAINING_STYLES, prescription: rpePrescription,
+    scaleNutrition, mealTotals } = window.GhostyLogic;
+  const styleForGoal = goal => goal === 'strongman' ? 'strength' : ['get_fit', 'fatloss', 'stay_same'].includes(goal) ? 'fitness' : 'bodybuilding';
 
   // --- Audio / Haptic Feedback ---
   const audioCtx = window.AudioContext || window.webkitAudioContext ? new (window.AudioContext || window.webkitAudioContext)() : null;
@@ -93,7 +96,7 @@
       id: 'bodybuilding',
       name: 'Bodybuilding Return',
       badge: '💪 Bodybuilder Return',
-      tagline: 'Rebuild muscle, joint health, RPE 7-8, safe progression',
+      tagline: 'Rebuild muscle, joint health, RPE 8–10, controlled quality sets',
       calorieOffset: 250,
       proteinPerKg: 1.8,
       routineId: 'bodybuilding'
@@ -894,6 +897,8 @@
           if (!parsed.routines[id]) parsed.routines[id] = JSON.parse(JSON.stringify(DEFAULT_ROUTINES[id]));
         });
         if (!GOAL_PRESETS[parsed.activeGoal]) parsed.activeGoal = 'bodybuilding';
+        if (!TRAINING_STYLES[parsed.trainingStyle]) parsed.trainingStyle = styleForGoal(parsed.activeGoal);
+        if (!Number.isFinite(Number(parsed.trainingRpe)) || Number(parsed.trainingRpe) < 1 || Number(parsed.trainingRpe) > 10) parsed.trainingRpe = TRAINING_STYLES[parsed.trainingStyle].rpe;
         if (!parsed.activeRoutineId || !parsed.routines[parsed.activeRoutineId]) parsed.activeRoutineId = GOAL_PRESETS[parsed.activeGoal].routineId;
         if (!parsed.completedExercises) parsed.completedExercises = {};
         if (!parsed.shoppingChecked) parsed.shoppingChecked = {};
@@ -952,6 +957,8 @@
   function createDefaultState() {
     return {
       activeGoal: 'bodybuilding',
+      trainingStyle: 'bodybuilding',
+      trainingRpe: 9,
       profile: {
         weight: 10.4,
         unit: 'stone',
@@ -1142,6 +1149,11 @@
     const goal = GOAL_PRESETS[goalId];
     if (!goal) return;
 
+    const intensityChanged = state.activeGoal !== goalId;
+    if (intensityChanged) {
+      state.trainingStyle = styleForGoal(goalId);
+      state.trainingRpe = TRAINING_STYLES[state.trainingStyle].rpe;
+    }
     state.activeGoal = goalId;
     if (state.routines[goal.routineId]) {
       state.activeRoutineId = goal.routineId;
@@ -1167,6 +1179,7 @@
     // Suggested sets/reps depend on the goal
     if ($('bodymap-svg')) renderFocusExercises();
     renderNutrition();
+    if (intensityChanged) changeTrainingIntensity(state.trainingStyle);
     saveState();
   }
 
@@ -1404,6 +1417,63 @@
   let selectedWorkoutDayFilter = 'today';
   const WEEKDAY_IDS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
+  function trainingPrescription() {
+    return rpePrescription(state.trainingRpe, state.trainingStyle);
+  }
+
+  function renderRpeControls() {
+    const p = trainingPrescription();
+    $('training-style').value = state.trainingStyle;
+    $('workout-rpe').value = p.rpe;
+    $('workout-rpe-value').textContent = p.rpe;
+    $('workout-rpe-summary').textContent = `${p.exercises} exercises · ${p.sets} working sets each · ${p.rest}s rest · ${p.rir === 0 ? 'no reps left in reserve' : 'about ' + p.rir + ' reps in reserve'}. Choose a load that matches this effort with controlled form.`;
+  }
+
+  function changeTrainingIntensity(style) {
+    if (style) {
+      state.trainingStyle = style;
+      state.trainingRpe = TRAINING_STYLES[style].rpe;
+    } else state.trainingRpe = Number($('workout-rpe').value);
+    saveState();
+    const p = trainingPrescription();
+    clearInterval(timerInterval);
+    timerInterval = null;
+    timerRemaining = timerTotal = p.rest;
+    updateTimerDisplay();
+    document.querySelectorAll('.timer-preset-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.sec) === p.rest));
+    renderWorkouts();
+    renderFocusExercises();
+  }
+
+  // Build a view of the plan; keep the user's original exercises available when effort changes.
+  function rpeDayExercises(day) {
+    if (day.isRest) return day.exercises;
+    const target = trainingPrescription().exercises;
+    const working = day.exercises.filter(ex => classifyExercise(ex.name));
+    const groups = [...new Set(working.map(ex => classifyExercise(ex.name)))];
+    const result = [];
+    // Cover each part of a split before adding another exercise for the same muscle.
+    groups.forEach(group => {
+      const ex = working.find(e => classifyExercise(e.name) === group);
+      if (ex && result.length < target) result.push(ex);
+    });
+    working.forEach(ex => { if (result.length < target && !result.includes(ex)) result.push(ex); });
+    const usedNames = new Set(result.map(e => e.name.toLowerCase()));
+    const usedLib = new Set(result.map(e => e.libId || findLibraryMatch(e)?.id).filter(Boolean));
+    const allowed = KIT_ALLOWED[state.exerciseKit] || KIT_ALLOWED.gym;
+    const candidates = EXERCISE_LIBRARY.filter(e => allowed.includes(e.kit)
+      && groups.includes(classifyExercise(e.name)) && !libHealthWarning(e) && !(day.rpeExcluded || []).includes(e.id))
+      .sort((a, b) => Number(b.mechanic === 'compound') - Number(a.mechanic === 'compound'));
+    for (const e of candidates) {
+      if (result.length >= target) break;
+      if (usedNames.has(e.name.toLowerCase()) || usedLib.has(e.id)) continue;
+      result.push({ id: `rpe_${day.id}_${e.id}`, libId: e.id, name: e.name, sets: suggestedSets(e), notes: e.tip, generated: true });
+      usedNames.add(e.name.toLowerCase());
+      usedLib.add(e.id);
+    }
+    return result.length ? result : day.exercises;
+  }
+
   function getTodayRoutineIndex(routine) {
     const todayId = WEEKDAY_IDS[new Date().getDay()];
     const idx = routine.days.findIndex(d => d.id === todayId);
@@ -1438,6 +1508,7 @@
   }
 
   function renderWorkouts() {
+    renderRpeControls();
     const routine = state.routines[state.activeRoutineId] || state.routines.bodybuilding;
     const container = $('workout-days-container');
     container.replaceChildren();
@@ -1456,6 +1527,7 @@
       : routine.days.filter((_, idx) => String(idx) === String(selectedWorkoutDayFilter));
 
     daysToRender.forEach(day => {
+      const displayedExercises = rpeDayExercises(day);
       const isToday = routine.days.indexOf(day) === todayIdx;
       const card = document.createElement('div');
       card.className = 'day-card' + (day.isRest ? ' rest-day' : '');
@@ -1472,10 +1544,10 @@
 
       const subtitle = document.createElement('div');
       subtitle.className = 'day-subtitle';
-      const doneCount = day.exercises.filter(ex => state.completedExercises[ex.id]).length;
+      const doneCount = displayedExercises.filter(ex => state.completedExercises[ex.id]).length;
       subtitle.textContent = day.isRest
         ? 'Recovery day'
-        : `${doneCount} / ${day.exercises.length} exercises done this week`;
+        : `${doneCount} / ${displayedExercises.length} exercises done this week · RPE ${trainingPrescription().rpe}`;
 
       titleWrap.append(title, subtitle);
 
@@ -1502,9 +1574,9 @@
       const exList = document.createElement('div');
       exList.className = 'exercise-list';
 
-      const views = day.exercises.map((ex, i) => ({ ex, view: getExerciseView(ex, day, i, dietAdj) }));
+      const views = displayedExercises.map((ex, i) => ({ ex, view: getExerciseView(ex, day, i, dietAdj) }));
       // Over-eating on a fat-loss goal adds a cardio finisher to training days
-      if (!day.isRest && dietAdj.finisher) {
+      if (!day.isRest && dietAdj.finisher && trainingPrescription().rpe < 7 && views.length < trainingPrescription().exercises) {
         const fid = 'finisher_' + day.id;
         views.push({ ex: { id: fid, name: 'Incline walk finisher', sets: `1 × ${dietAdj.finisher} min` },
           view: { id: fid, name: 'Incline walk finisher', sets: `1 × ${dietAdj.finisher} min`, notes: 'Auto-added from your food log — brisk incline walk at a pace you can talk.', badges: [{ text: '🔥 Auto', cls: '' }], lib: null, auto: true } });
@@ -1563,6 +1635,7 @@
         editBtn.title = 'Edit exercise';
         editBtn.onclick = e => {
           e.stopPropagation();
+          if (ex.generated && !day.exercises.some(item => item.id === ex.id)) day.exercises.push({ ...ex, generated: false });
           openEditExerciseModal(day.id, ex);
         };
 
@@ -1573,6 +1646,7 @@
         delBtn.onclick = e => {
           e.stopPropagation();
           if (confirm(`Remove "${ex.name}" from ${day.dayName}?`)) {
+            if (ex.generated) day.rpeExcluded = [...(day.rpeExcluded || []), ex.libId];
             day.exercises = day.exercises.filter(x => x.id !== ex.id);
             saveState();
             renderWorkouts();
@@ -1998,7 +2072,7 @@
       slot: slot || 'breakfast',
       name: food.name,
       brand: food.brand || '',
-      grams: Math.round(grams),
+      grams,
       portion: portion || '',
       isDrink: !!food.isDrink,
       calories: Math.round((food.calories || 0) * mult),
@@ -2008,6 +2082,15 @@
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
+    Object.assign(entry, scaleNutrition(food, grams));
+    entry.calories = Math.round(entry.calories || 0);
+    ['protein', 'carbs', 'fat'].forEach(key => { entry[key] = +(entry[key] || 0).toFixed(1); });
+    if (food.isRecipe) {
+      entry.recipeCode = food.code;
+      entry.ingredients = JSON.parse(JSON.stringify(food.ingredients));
+      entry.recipeWeight = food.totalWeight;
+    }
+
     if (!state.mealLogs) state.mealLogs = [];
     state.mealLogs.unshift(entry);
 
@@ -2016,6 +2099,7 @@
     const exists = state.foodLibrary.some(f => (f.code && f.code === food.code) || (f.name.toLowerCase() === food.name.toLowerCase() && f.brand === food.brand));
     if (!exists) {
       state.foodLibrary.unshift({
+        ...food,
         code: food.code || ('custom_' + Date.now()),
         name: food.name,
         brand: food.brand || 'Custom / Scanned',
@@ -2025,11 +2109,11 @@
         calories: food.calories || 0,
         protein: food.protein || 0,
         carbs: food.carbs || 0,
-        sugars: food.sugars || 0,
+        sugars: food.sugars ?? null,
         fat: food.fat || 0,
-        satFat: food.satFat || 0,
-        fiber: food.fiber || 0,
-        salt: food.salt || 0,
+        satFat: food.satFat ?? null,
+        fiber: food.fiber ?? null,
+        salt: food.salt ?? null,
         nutriScore: food.nutriScore || 'A',
         image: food.image || '🥗'
       });
@@ -2681,6 +2765,7 @@
   let currentCameraFacing = 'environment';
   let isTorchOn = false;
   let barcodeDetector = null;
+  let scannerLookupVersion = 0;
 
   // Only ask for formats the device supports; unsupported ones make the constructor throw
   if ('BarcodeDetector' in window) {
@@ -2903,6 +2988,8 @@
   }
 
   function openScannerModal() {
+    scannerLookupVersion++;
+    if (pendingMealIngredientId) $('modal-meal-builder').classList.remove('active');
     $('modal-barcode').classList.add('active');
     $('scanned-result-container').replaceChildren();
     $('scanner-loading').style.display = 'none';
@@ -2935,6 +3022,9 @@
       // Google scanner unavailable (no Play Services / module not downloaded yet)
       showToast('Using in-app camera scanner');
       startBarcodeScanner();
+    } else if (status === 'cancelled' && pendingMealIngredientId) {
+      pendingMealIngredientId = null;
+      openModal('modal-meal-builder');
     }
   };
 
@@ -3047,8 +3137,13 @@
   }
 
   function stopBarcodeScanner() {
+    scannerLookupVersion++;
     stopCameraStream();
     $('modal-barcode').classList.remove('active');
+    if (pendingMealIngredientId) {
+      pendingMealIngredientId = null;
+      openModal('modal-meal-builder');
+    }
   }
 
   async function toggleTorch() {
@@ -3153,6 +3248,7 @@
 
   async function lookupBarcode(query) {
     if (!query || !query.trim()) return;
+    const lookupVersion = ++scannerLookupVersion;
     const cleanQuery = query.trim();
     const q = cleanQuery.toLowerCase();
     const isBarcodeNum = /^\d{6,14}$/.test(cleanQuery);
@@ -3223,11 +3319,18 @@
               calories: Math.round(kcal),
               protein: parseFloat(pro.toFixed(1)),
               carbs: parseFloat(carb.toFixed(1)),
-              sugars: parseFloat(sug.toFixed(1)),
+              sugars: nut['sugars_100g'] != null ? sug : null,
               fat: parseFloat(fat.toFixed(1)),
-              satFat: parseFloat(satFat.toFixed(1)),
-              fiber: parseFloat(fiber.toFixed(1)),
-              salt: parseFloat(salt.toFixed(2)),
+              satFat: nut['saturated-fat_100g'] != null ? satFat : null,
+              fiber: nut['fiber_100g'] != null ? fiber : null,
+              salt: nut['salt_100g'] != null || nut['sodium_100g'] != null ? salt : null,
+              sodium: nut['sodium_100g'] != null ? num(nut['sodium_100g']) * 1000 : nut['salt_100g'] != null ? salt * 400 : null,
+              cholesterol: nut['cholesterol_100g'] != null ? num(nut['cholesterol_100g']) * 1000 : null,
+              unsatFat: nut['unsaturated-fat_100g'] != null ? num(nut['unsaturated-fat_100g'])
+                : nut['monounsaturated-fat_100g'] != null && nut['polyunsaturated-fat_100g'] != null
+                ? num(nut['monounsaturated-fat_100g']) + num(nut['polyunsaturated-fat_100g']) : null,
+              transFat: nut['trans-fat_100g'] != null ? num(nut['trans-fat_100g']) : null,
+              potassium: nut['potassium_100g'] != null ? num(nut['potassium_100g']) * 1000 : null,
               nutriScore: p.nutriscore_grade && p.nutriscore_grade.length === 1 ? p.nutriscore_grade.toUpperCase() : '?',
               image: p.image_front_small_url || p.image_url || '🥗'
             };
@@ -3238,6 +3341,7 @@
       }
     }
 
+    if (lookupVersion !== scannerLookupVersion) return;
     $('scanner-loading').style.display = 'none';
 
     if (!productData && localMatch) {
@@ -3266,6 +3370,13 @@
       addBtn.style.marginTop = '10px';
       addBtn.textContent = '＋ Add as Custom Food';
       addBtn.onclick = () => {
+        if (pendingMealIngredientId) {
+          const ingredient = mealDraft.ingredients.find(i => i.id === pendingMealIngredientId);
+          if (ingredient) { ingredient.food.name = isBarcodeNum ? '' : cleanQuery; ingredient.food.code = isBarcodeNum ? cleanQuery : ''; }
+          stopBarcodeScanner();
+          renderMealIngredients();
+          return;
+        }
         stopBarcodeScanner();
         openCustomFoodModal(isBarcodeNum ? { code: cleanQuery } : { name: cleanQuery });
       };
@@ -3277,6 +3388,46 @@
   function renderScannedResult(prod) {
     const container = $('scanned-result-container');
     container.replaceChildren();
+
+    if (pendingMealIngredientId) {
+      const targetId = pendingMealIngredientId;
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `<div class="card-title">${esc(prod.name)}</div><p class="report-text">Nutrition per 100g. Choose the exact grams in your ingredient block.</p>`;
+      let liquidWeight = null;
+      if (prod.isDrink) {
+        const field = document.createElement('div');
+        field.className = 'form-group';
+        field.innerHTML = '<label for="ingredient-liquid-weight">Weight of 100ml of this liquid (grams)</label><input id="ingredient-liquid-weight" type="number" min="0.01" step="any" inputmode="decimal" placeholder="Weigh 100ml or use the label"><p class="report-text">Liquid labels use ml. This converts their nutrition to the exact grams in your recipe.</p>';
+        liquidWeight = field.querySelector('input');
+        card.append(field);
+      }
+      const use = document.createElement('button');
+      use.className = 'btn btn-cyan btn-block';
+      use.textContent = 'Use This Ingredient';
+      use.onclick = () => {
+        const ingredient = mealDraft?.ingredients.find(i => i.id === targetId);
+        if (!ingredient) return;
+        if (prod.servingUnknown) {
+          showToast('Enter nutrition per 100g manually for an ingredient without a known gram weight.');
+          return;
+        }
+        if (liquidWeight && !(Number(liquidWeight.value) > 0)) {
+          showToast('Enter the weight of 100ml to convert this liquid to grams.');
+          return;
+        }
+        ingredient.food = liquidWeight
+          ? { ...prod, ...scaleNutrition(prod, 10000 / Number(liquidWeight.value)),
+            salt: prod.salt == null ? null : prod.salt * 100 / Number(liquidWeight.value),
+            isDrink: false, liquidGramsPer100ml: Number(liquidWeight.value) }
+          : { ...prod };
+        stopBarcodeScanner();
+        renderMealIngredients();
+      };
+      card.append(use);
+      container.append(card);
+      return;
+    }
 
     let servingWeight = 100;
 
@@ -3366,7 +3517,7 @@
     picker.fire();
     card.append(macroGrid);
 
-    // Detailed Micro list
+    // Full profile follows the selected serving, including saved recipes.
     const microDetail = document.createElement('div');
     microDetail.style.fontSize = '11px';
     microDetail.style.color = 'var(--text-muted)';
@@ -3380,6 +3531,15 @@
       <span>Salt: <b>${prod.salt || 0}g</b></span>
     `;
     card.append(microDetail);
+    const updateFullProfile = () => { microDetail.innerHTML = nutritionProfileHtml(scaleNutrition(prod, portionBase)); };
+    picker.addEventListener('input', updateFullProfile);
+    picker.addEventListener('change', updateFullProfile);
+    updateFullProfile();
+    if (prod.isRecipe) {
+      const recipe = document.createElement('details');
+      recipe.innerHTML = `<summary>Recipe · ${esc(prod.totalWeight)}g total</summary>${(prod.ingredients || []).map(i => `<div class="report-text">${esc(i.food.name)} · ${esc(i.grams)}g</div>`).join('')}`;
+      card.append(recipe);
+    }
 
     // Slot Selector Box
     const slotBox = document.createElement('div');
@@ -3919,6 +4079,100 @@
     };
   }
 
+  // --- Custom Meal Builder: each ingredient uses its own per-100g label values. ---
+  let mealDraft = null;
+  let pendingMealIngredientId = null;
+  let ingredientSequence = 0;
+
+  function nutritionProfileHtml(values) {
+    return `<div class="nutrition-profile">${MEAL_NUTRIENTS.map(([key, label, unit]) => `<div><span>${label}</span><strong>${values[key] == null ? 'Unknown' : Number(values[key].toFixed(2)) + ' ' + unit}</strong></div>`).join('')}</div>`;
+  }
+
+  function openMealBuilder() {
+    pendingMealIngredientId = null;
+    if (!mealDraft) {
+      mealDraft = { name: '', ingredients: [] };
+      addMealIngredient();
+    }
+    $('meal-builder-name').value = mealDraft.name;
+    renderMealIngredients();
+    openModal('modal-meal-builder');
+  }
+
+  function addMealIngredient() {
+    mealDraft.ingredients.push({ id: 'ingredient_' + (++ingredientSequence), grams: 100, food: { name: '' } });
+    renderMealIngredients();
+  }
+
+  function updateMealTotals() {
+    const { weight, totals } = mealTotals(mealDraft.ingredients);
+    $('meal-builder-weight').textContent = `${Number(weight.toFixed(2))}g total`;
+    $('meal-builder-totals').innerHTML = nutritionProfileHtml(totals);
+  }
+
+  function renderMealIngredients() {
+    const box = $('meal-builder-ingredients');
+    box.replaceChildren();
+    mealDraft.ingredients.forEach((ingredient, index) => {
+      const block = document.createElement('div');
+      block.className = 'card meal-ingredient';
+      block.innerHTML = `
+        <div class="card-title-row"><strong>Ingredient ${index + 1}</strong><button class="btn btn-outline btn-sm ingredient-delete" aria-label="Delete ingredient ${index + 1}">Delete</button></div>
+        <div class="form-group"><label for="${ingredient.id}_name">Ingredient Name</label><input id="${ingredient.id}_name" class="ingredient-name" type="text" value="${esc(ingredient.food.name)}" placeholder="Enter manually or scan a barcode"></div>
+        <button class="btn btn-outline btn-sm ingredient-scan">Scan Barcode / Search</button>
+        <div class="form-group"><label for="${ingredient.id}_grams">Amount (grams)</label><input id="${ingredient.id}_grams" class="ingredient-grams" type="number" min="0.01" step="any" inputmode="decimal" value="${esc(ingredient.grams)}"></div>
+        <details><summary>Nutrition per 100g · enter or edit label values</summary><div class="form-grid ingredient-nutrients">${MEAL_NUTRIENTS.map(([key, label, unit]) => `<div class="form-group"><label for="${ingredient.id}_${key}">${label} (${unit})</label><input id="${ingredient.id}_${key}" data-nutrient="${key}" type="number" inputmode="decimal" step="any" min="0" placeholder="Unknown" value="${esc(window.GhostyLogic.nutrientValue(ingredient.food, key) ?? '')}"></div>`).join('')}</div></details>`;
+      block.querySelector('.ingredient-name').oninput = event => { ingredient.food.name = event.target.value; };
+      block.querySelector('.ingredient-grams').oninput = event => { ingredient.grams = event.target.value; updateMealTotals(); };
+      block.querySelectorAll('[data-nutrient]').forEach(input => {
+        input.oninput = () => {
+          ingredient.food[input.dataset.nutrient] = input.value === '' ? null : Number(input.value);
+          if (input.dataset.nutrient === 'sodium') delete ingredient.food.salt;
+          updateMealTotals();
+        };
+      });
+      block.querySelector('.ingredient-delete').onclick = () => {
+        mealDraft.ingredients = mealDraft.ingredients.filter(i => i.id !== ingredient.id);
+        renderMealIngredients();
+      };
+      block.querySelector('.ingredient-scan').onclick = () => { pendingMealIngredientId = ingredient.id; scanBarcode(); };
+      box.append(block);
+    });
+    updateMealTotals();
+  }
+
+  function saveCustomMeal() {
+    mealDraft.name = $('meal-builder-name').value.trim();
+    if (!mealDraft.name) { showToast('Enter a Meal Name.'); return; }
+    if (!mealDraft.ingredients.length) { showToast('Add at least one ingredient.'); return; }
+    for (const ingredient of mealDraft.ingredients) {
+      if (!ingredient.food.name.trim() || !Number.isFinite(Number(ingredient.grams)) || Number(ingredient.grams) <= 0) {
+        showToast('Each ingredient needs a name and a weight above zero.'); return;
+      }
+      for (const key of ['calories', 'protein', 'carbs', 'fat']) {
+        if (window.GhostyLogic.nutrientValue(ingredient.food, key) == null) {
+          showToast('Enter calories, protein, carbs and fats per 100g for every ingredient (use 0 if none).'); return;
+        }
+      }
+      if (MEAL_NUTRIENTS.some(([key]) => ingredient.food[key] != null && (!Number.isFinite(Number(ingredient.food[key])) || Number(ingredient.food[key]) < 0))) {
+        showToast('Nutrition values must be zero or greater.'); return;
+      }
+    }
+    const { weight, totals } = mealTotals(mealDraft.ingredients);
+    const per100 = Object.fromEntries(MEAL_NUTRIENTS.map(([key]) => [key, totals[key] == null ? null : totals[key] * 100 / weight]));
+    const recipe = { ...per100, code: 'recipe_' + Date.now(), name: mealDraft.name, brand: 'Custom Meal',
+      isRecipe: true, isDrink: false, totalWeight: weight, totals,
+      serving: `${Number(weight.toFixed(2))}g whole recipe`, servingBase: weight,
+      ingredients: JSON.parse(JSON.stringify(mealDraft.ingredients)), image: '🍲' };
+    state.foodLibrary.unshift(recipe);
+    saveState();
+    mealDraft = null;
+    closeModal('modal-meal-builder');
+    renderNutrition();
+    openFoodLibraryModal();
+    showToast('Meal saved. Choose it from your library to log any serving in grams.');
+  }
+
   // --- Step Tracker Engine ---
   function getStepDistance(steps) {
     const heightCm = state.profile.height || 165.1;
@@ -4097,6 +4351,8 @@
 
     // Hardware Sensor Status Text
     const statusText = $('pedometer-status-text');
+    const inVehicle = !!(window.AndroidApp && typeof window.AndroidApp.isInVehicle === 'function' && window.AndroidApp.isInVehicle());
+    if ($('btn-clear-vehicle')) $('btn-clear-vehicle').style.display = inVehicle && typeof window.AndroidApp.clearVehicleDetection === 'function' ? 'block' : 'none';
     if (statusText) {
       const needsPermission = window.AndroidApp && typeof window.AndroidApp.hasActivityPermission === 'function' &&
         !window.AndroidApp.hasActivityPermission() && typeof window.AndroidApp.getSensorType === 'function' &&
@@ -4107,9 +4363,8 @@
         statusText.textContent = '⚠️ Steps can\'t be counted: allow "Physical activity" for Ghosty Gains in your phone settings, then tap 🔄 Sync.';
       } else if (window.AndroidApp && typeof window.AndroidApp.hasStepSensor === 'function' && window.AndroidApp.hasStepSensor()) {
         const type = typeof window.AndroidApp.getSensorType === 'function' ? window.AndroidApp.getSensorType() : 'Pedometer';
-        const inVehicle = typeof window.AndroidApp.isInVehicle === 'function' && window.AndroidApp.isInVehicle();
         statusText.textContent = inVehicle
-          ? '🚗 You seem to be in a vehicle — step counting is paused until you get out.'
+          ? '🚗 Vehicle motion detected. Steps resume when walking is detected. If this is wrong, tap below.'
           : `${type} connected. Steps taken while driving or riding in a vehicle are ignored.`;
       } else if (window.AndroidApp) {
         statusText.textContent = 'No step sensor on this phone — log steps manually with the buttons above.';
@@ -5544,13 +5799,8 @@
   }
 
   function suggestedSets(e) {
-    const goal = state.activeGoal;
-    const compound = e.mechanic === 'compound';
-    if (goal === 'strongman') return compound ? '4 × 3–6' : '3 × 8–12';
-    if (goal === 'fatloss') return compound ? '3 × 10–12' : '3 × 12–15';
-    if (goal === 'get_fit') return '3 × 10–15';
-    if (goal === 'bodybuilding') return compound ? '2–3 × 8–12' : '2–3 × 10–15';
-    return compound ? '3–4 × 6–10' : '3 × 10–15';
+    const p = trainingPrescription();
+    return `${p.sets} × ${e.mechanic === 'compound' ? p.reps : '10–15'}`;
   }
 
   const KIT_ALLOWED = {
@@ -6069,6 +6319,17 @@
         view.badges.push({ text: delta > 0 ? '🍗 +1 set' : '🔋 −1 set', cls: delta > 0 ? 'cyan' : '', title: adj.message });
       }
     }
+    if (!day.isRest && classifyExercise(view.name)) {
+      const p = trainingPrescription();
+      const match = /^\d+(?:\s*[–-]\s*\d+)?\s*×\s*(.*)$/.exec(ex.sets || '');
+      // Low food intake may reduce volume; extra diet sets never override the RPE cap.
+      const sets = Math.max(1, p.sets + Math.min(0, adj?.setDelta || 0));
+      const reps = match && !/min|sec|round/i.test(match[1]) && view.lib?.mechanic === 'compound' ? p.reps : match ? match[1] : p.reps;
+      view.sets = `${sets} × ${reps}`;
+      view.badges = view.badges.filter(b => !/set$/.test(b.text));
+      view.badges.push({ text: `RPE ${p.rpe}`, cls: 'purple' });
+      view.notes = `${view.notes.replace(/\b\d+(?:[–-]\d+)? reps in reserve[, .]*/gi, '')} · ${p.rir} reps in reserve · ${p.rest}s rest. ${p.rpe >= 9 ? 'High effort: controlled reps, stop when form breaks.' : 'Keep every rep controlled.'}`;
+    }
     return view;
   }
 
@@ -6081,7 +6342,9 @@
     const diet = document.createElement('div');
     diet.className = 'callout' + (adj.status === 'low' || adj.status === 'over' ? '' : ' info');
     const icon = { low: '🔋', over: '🔥', high: '🍗', protein: '🥩', ontrack: '✅', nodata: '🍽️' }[adj.status] || '🍽️';
-    diet.innerHTML = `<strong>${icon} Auto-adjusted for your diet & ${esc(goal.name)} goal:</strong> ${esc(adj.message)}${adj.intake ? `<br><span style="font-size:11px;">${esc(adj.intake)} Targets: ${fmt(state.profile.calorieTarget)} kcal · ${state.profile.proteinTarget}g protein.</span>` : ''}`;
+    const message = adj.focusDelta > 0 ? 'Fully fuelled — keep the working-set volume set by your chosen RPE and focus on controlled reps.'
+      : adj.finisher && trainingPrescription().rpe >= 7 ? 'Eating above your fat-loss target. Keep your RPE workout focused; an easy walk can be done separately.' : adj.message;
+    diet.innerHTML = `<strong>${icon} Auto-adjusted for your diet & ${esc(goal.name)} goal:</strong> ${esc(message)}${adj.intake ? `<br><span style="font-size:11px;">${esc(adj.intake)} Targets: ${fmt(state.profile.calorieTarget)} kcal · ${state.profile.proteinTarget}g protein.</span>` : ''}`;
     box.append(diet);
 
     const conds = activeConditions();
@@ -6279,6 +6542,8 @@
     state.bodyMapSex = v.sex === 'female' ? 'female' : 'male';
     state.setupComplete = true;
     state.activeGoal = v.goal;
+    state.trainingStyle = styleForGoal(v.goal);
+    state.trainingRpe = TRAINING_STYLES[state.trainingStyle].rpe;
     saveState();
     $('modal-onboarding').classList.remove('active');
     initApp();
@@ -6365,6 +6630,21 @@
   });
 
   function initApp() {
+    $('training-style').onchange = () => changeTrainingIntensity($('training-style').value);
+    $('workout-rpe').oninput = () => changeTrainingIntensity();
+    $('btn-open-meal-builder').onclick = openMealBuilder;
+    $('meal-builder-name').oninput = () => { mealDraft.name = $('meal-builder-name').value; };
+    $('btn-add-meal-ingredient').onclick = addMealIngredient;
+    $('btn-save-custom-meal').onclick = saveCustomMeal;
+    $('btn-close-meal-builder').onclick = () => closeModal('modal-meal-builder');
+    $('btn-clear-vehicle').onclick = () => {
+      runNativeStepAction('sync', () => window.AndroidApp.clearVehicleDetection());
+    };
+    if (!timerInterval) {
+      timerRemaining = timerTotal = trainingPrescription().rest;
+      updateTimerDisplay();
+      document.querySelectorAll('.timer-preset-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.sec) === timerTotal));
+    }
     rolloverIfNewDay();
     $('log-weight-date').value = getTodayString();
     $('log-weight-unit').value = state.profile.unit;

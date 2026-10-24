@@ -41,6 +41,24 @@
       <div id="subview-plan" class="subview active">
 
       <!-- Rest Timer Bar -->
+      <div class="card">
+        <div class="card-title purple">Workout Intensity</div>
+        <div class="form-group">
+          <label for="training-style">Training style preset</label>
+          <select id="training-style">
+            <option value="bodybuilding">Bodybuilding Returning · RPE 8–10</option>
+            <option value="fitness">General Fitness · RPE 6–7</option>
+            <option value="strength">Strength · RPE 7–9</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="workout-rpe">RPE (Rate of Perceived Exertion): <output id="workout-rpe-value" for="workout-rpe">9</output> / 10</label>
+          <input id="workout-rpe" type="range" min="1" max="10" step="1" value="9" aria-describedby="workout-rpe-summary">
+          <div class="rpe-range-labels"><span>1 · Easy effort</span><span>10 · At failure</span></div>
+        </div>
+        <p class="report-text" id="workout-rpe-summary" aria-live="polite"></p>
+        <p class="report-text">Changing RPE automatically adjusts your training days. Warm up before working sets; take longer rests if your form needs it.</p>
+      </div>
       <div class="rest-timer-bar">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 18px;">⏱️</span>
@@ -62,7 +80,7 @@
         <div class="card-title-row">
           <div>
             <div class="card-title purple" id="active-routine-name">Ghosty's Bodybuilding Return Split</div>
-            <div class="card-subtitle" id="current-goal-tagline">Rebuild muscle, joint health, RPE 7-8, safe progression</div>
+            <div class="card-subtitle" id="current-goal-tagline">Rebuild muscle, joint health, RPE 8–10, controlled quality sets</div>
           </div>
         </div>
 
@@ -201,6 +219,7 @@
           <button class="btn btn-outline btn-sm" id="btn-open-scanner-manual" style="flex: 1; min-width: 100px;">🔍 Search</button>
           <button class="btn btn-outline btn-sm" id="btn-open-food-library" style="flex: 1; min-width: 120px;">📚 Library (<span id="saved-food-count-badge">0</span>)</button>
           <button class="btn btn-outline btn-sm" id="btn-open-custom-food" style="flex: 1; min-width: 110px;">＋ Custom Food</button>
+          <button class="btn btn-cyan btn-sm" id="btn-open-meal-builder" style="flex: 1; min-width: 140px;">🍲 Custom Meal Builder</button>
         </div>
         <!-- Hidden Photo Capture Input for instant fallback -->
         <input type="file" id="barcode-file-snap" accept="image/*" capture="environment" style="display: none;">
@@ -406,6 +425,7 @@
 
           <div class="callout info" style="margin-top: 14px;">
             <strong>Sensor Connection:</strong> <span id="pedometer-status-text">Hardware sensor active &amp; logging steps.</span>
+            <button class="btn btn-outline btn-sm" id="btn-clear-vehicle" style="display: none; margin-top: 8px;">I'm not driving · Resume steps</button>
           </div>
         </div>
 
@@ -935,6 +955,25 @@
   </div>
 
   <!-- MODAL: CREATE CUSTOM FOOD -->
+  <div class="modal-overlay" id="modal-meal-builder">
+    <div class="modal" style="max-width: 560px;">
+      <div class="modal-header">
+        <div class="modal-title">🍲 Custom Meal Builder</div>
+        <button class="modal-close" id="btn-close-meal-builder" aria-label="Close meal builder">✕</button>
+      </div>
+      <div class="form-group"><label for="meal-builder-name">Meal Name</label><input id="meal-builder-name" type="text" placeholder="e.g. Chicken and rice bowl"></div>
+      <p class="report-text">Scan or enter each ingredient, then enter its exact grams. Nutrition label values are per 100g. Leave unavailable nutrients blank.</p>
+      <div id="meal-builder-ingredients"></div>
+      <button class="btn btn-outline btn-block" id="btn-add-meal-ingredient">＋ Add Ingredient</button>
+      <div class="card" style="margin-top: 12px;">
+        <div class="card-title-row"><strong>Full Meal Nutrition</strong><span id="meal-builder-weight">0g total</span></div>
+        <div id="meal-builder-totals" aria-live="polite"></div>
+        <p class="report-text">Unknown means at least one ingredient has no value for that nutrient.</p>
+      </div>
+      <button class="btn btn-cyan btn-block" id="btn-save-custom-meal">Done</button>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="modal-custom-food">
     <div class="modal" style="max-width: 480px;">
       <div class="modal-header">
@@ -1206,6 +1245,7 @@
   </nav>
 
   <script src="exercise_library.js"></script>
+  <script src="workout_nutrition.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
