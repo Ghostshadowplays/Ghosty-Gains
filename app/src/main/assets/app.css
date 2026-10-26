@@ -2136,3 +2136,92 @@ input.exercise-check:focus-visible {
 #tutorial-card p { margin: 10px 0; line-height: 1.5; }
 #tutorial-card .nutrition-date-row { margin-bottom: 0; justify-content: flex-end; }
 #tutorial-progress { margin-right: auto; }
+
+/* Daily overview, training journal and shared accessible controls. */
+:root { --text-muted: #b0b3cd; --card-border: #30334d; }
+body { font-size: 16px; }
+button, input, select, summary { touch-action: manipulation; }
+button, .btn, .chip-btn, .day-chip, .timer-preset-btn, .subnav-btn, select { min-height: 44px; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .6; }
+button[hidden], [hidden] { display: none !important; }
+:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 1px; }
+input, select, textarea { font-size: 16px; }
+.report-text, .card-subtitle, .exercise-notes, .day-subtitle { font-size: 13px; line-height: 1.6; }
+.btn-sm, .day-chip, .subnav-btn, .timer-preset-btn { font-size: 13px; }
+.btn-icon, .modal-close { min-width: 44px; min-height: 44px; }
+.card { box-shadow: none; }
+.badge-goal { display: block; box-shadow: none; max-width: 110px; text-overflow: ellipsis; }
+.brand-title { font-size: 15px; }
+.brand-subtitle { font-size: 10px; }
+.header-actions { gap: 4px; }
+.header-actions .btn-sm { padding-inline: 8px; }
+.bottom-nav { padding-inline: 4px; }
+.nav-item { min-width: 0; gap: 5px; min-height: 56px; }
+.nav-label { font-size: 10.5px; white-space: nowrap; }
+.nav-icon { display: flex; align-items: center; justify-content: center; height: 24px; }
+.nav-icon svg { width: 22px; height: 22px; stroke: currentColor; stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.nav-item.active { box-shadow: none; background: rgba(0, 200, 255, .09); }
+.container { max-width: 680px; padding: 16px 12px calc(24px + var(--safe-bottom)); }
+.today-heading { display: flex; align-items: center; justify-content: space-between; padding: 8px 2px 20px; gap: 12px; }
+.today-heading h1 { font-size: clamp(24px, 6vw, 32px); letter-spacing: -.8px; line-height: 1.2; margin-top: 8px; }
+.eyebrow { text-transform: uppercase; letter-spacing: 1.1px; font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.today-mark { color: var(--primary); font-size: 40px; }
+.today-workout { background: linear-gradient(130deg, #22213d, #141c2c); border-color: #484463; padding: 22px; }
+.today-workout h2 { font-size: 22px; line-height: 1.3; margin-top: 10px; }
+.today-workout .report-text { margin: 12px 0 18px; }
+.today-metrics, .quick-actions, .review-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+.today-metric { display: block; min-width: 0; padding: 16px; background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius); text-align: left; color: var(--text); }
+.metric-label { display: block; color: var(--text-muted); font-size: 13px; }
+.metric-value { display: block; font-size: 25px; font-weight: 800; letter-spacing: -.5px; margin: 5px 0; }
+.metric-caption { display: block; font-size: 12px; color: var(--text-muted); }
+.today-metric progress { display: block; width: 100%; height: 5px; border: 0; border-radius: 5px; margin-top: 12px; accent-color: var(--cyan); background: var(--card-border); }
+.today-metric progress::-webkit-progress-bar { background: var(--card-border); border-radius: 5px; }
+.today-metric progress::-webkit-progress-value { background: var(--cyan); border-radius: 5px; }
+.quick-actions .btn { white-space: normal; padding: 12px 8px; }
+.review-grid { margin-top: 14px; }
+.review-item { padding: 12px; background: rgba(0, 0, 0, .16); border-radius: 10px; min-width: 0; }
+.review-item strong { font-size: 19px; display: block; margin: 4px 0; }
+.review-item span { font-size: 12px; color: var(--text-muted); }
+.workout-session-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.workout-session-actions .btn { flex: 1; }
+.workout-settings summary, .set-history summary { color: var(--text); font-size: 14px; font-weight: 700; cursor: pointer; display: list-item; padding-block: 10px; }
+.workout-settings[open] summary { margin-bottom: 12px; }
+.exercise-item { flex-wrap: wrap; }
+.exercise-info { min-width: 130px; }
+.exercise-actions { flex-wrap: wrap; justify-content: flex-end; }
+.exercise-journal { width: 100%; padding: 8px 0 2px 44px; }
+.exercise-journal p { font-size: 12px; color: var(--text-muted); margin: 6px 0; }
+.exercise-journal .record { color: var(--primary); }
+.exercise-journal .btn { min-width: 120px; }
+.set-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 44px; align-items: center; gap: 6px; margin: 8px 0; }
+.set-row input { width: 100%; min-width: 0; min-height: 44px; padding-inline: 6px !important; }
+.set-labels { font-size: 12px; color: var(--text-muted); }
+.set-row .btn { padding: 0; }
+.set-history { margin-top: 16px; }
+.training-history-row { border-bottom: 1px solid var(--card-border); padding: 12px 0; }
+.training-history-row strong { font-size: 14px; }
+.training-history-row p { font-size: 13px; color: var(--text-muted); margin: 5px 0; }
+.form-error { color: #ff95a1; font-size: 14px; margin-block: 12px; }
+.rest-timer-bar { flex-wrap: wrap; gap: 10px; }
+.timer-controls { flex-wrap: wrap; gap: 5px; }
+#modal-food-actions .modal > div:not(.modal-header) { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px !important; }
+#modal-food-actions .btn { min-width: 0 !important; white-space: normal; }
+#modal-food-actions .modal > div:not(.modal-header) .btn:last-child { grid-column: 1 / -1; }
+.modal { max-height: 88dvh; }
+@media (max-width: 380px) {
+  .brand-subtitle { display: none; }
+  .badge-goal { max-width: 80px; padding-inline: 6px; font-size: 10px; }
+  .brand-title { font-size: 13px; }
+  .brand { gap: 5px; }
+  .brand-icon { width: 28px; min-width: 28px; height: 28px; }
+  .app-header { padding-inline: 8px; }
+  .modal-overlay { padding: 8px; }
+  .modal { padding: 14px; }
+  .exercise-journal { padding-left: 0; }
+  .nav-label { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

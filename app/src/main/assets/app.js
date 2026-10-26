@@ -884,6 +884,12 @@
 
   // Fills in anything missing from older saves or imported backups
   function normalizeState(parsed) {
+        const listFields = ['workoutSets', 'workoutSessions', 'mealLogs', 'mealPlans', 'weightLogs', 'stepLogs', 'sleepLogs', 'waterLogs', 'workoutLog', 'progressPhotos', 'measureLogs', 'machineWorkouts'];
+        for (const field of listFields) {
+          if (parsed[field] != null && !Array.isArray(parsed[field])) throw new Error(`Invalid backup: ${field} must be a list.`);
+        }
+        parsed.workoutSets = (parsed.workoutSets || []).filter(window.GhostyJournal.validSet);
+        parsed.workoutSessions = (parsed.workoutSessions || []).filter(s => s && typeof s.id === 'string' && typeof s.date === 'string');
         const defaults = createDefaultState();
         if (!parsed.profile) parsed.profile = defaults.profile;
         if (!parsed.routines) parsed.routines = {};
@@ -971,6 +977,9 @@
       routines: JSON.parse(JSON.stringify(DEFAULT_ROUTINES)),
       activeRoutineId: 'bodybuilding',
       completedExercises: {},
+      workoutSets: [],
+      workoutSessions: [],
+      progressPhotos: [],
       nutritionMode: 'simple',
       foodLibrary: JSON.parse(JSON.stringify(OFFLINE_FOODS_DB)),
       mealLogs: [],
@@ -997,6 +1006,7 @@
   }
 
   let state = loadState();
+  let experience;
 
   // New day: untick supplements & sleep habits. New week: untick workout sets.
   function rolloverIfNewDay() {
@@ -1040,6 +1050,7 @@
     }
     // Batch rapid saves (ticking boxes etc.) into one file write
     if (!nativeMirrorTimer) nativeMirrorTimer = setTimeout(writeNativeMirror, 600);
+    experience?.scheduleRefresh();
   }
 
   // Flush straight away when the app is backgrounded or closed
@@ -1074,6 +1085,7 @@
 
   // --- Navigation & Sub-views Handling ---
   function switchTab(tabId, subviewId = null) {
+    if (tabId === 'today') experience?.refresh();
     let parentTab = tabId;
     let targetSubview = subviewId;
 
@@ -1101,6 +1113,10 @@
     const navBtn = $('nav-' + parentTab);
     if (view) view.classList.add('active');
     if (navBtn) navBtn.classList.add('active');
+    document.querySelectorAll('.bottom-nav .nav-item').forEach(button => {
+      if (button === navBtn) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
 
     if (targetSubview) {
       switchSubview(parentTab, targetSubview);
@@ -1137,10 +1153,10 @@
       closeModal(openModal.id);
       return 'handled';
     }
-    // If not in workout tab, switch back to workouts
+    // Return to the daily overview before exiting the app.
     const activeTab = document.querySelector('.tab-view.active');
-    if (activeTab && activeTab.id !== 'tab-workouts') {
-      switchTab('workouts');
+    if (activeTab && activeTab.id !== 'tab-today') {
+      switchTab('today');
       return 'handled';
     }
     return 'unhandled';
@@ -1682,6 +1698,9 @@
         }
         if (!view.auto) actions.append(editBtn, delBtn);
         item.append(checkControl, info, actions);
+        editBtn.setAttribute('aria-label', `Edit ${view.name}`);
+        delBtn.setAttribute('aria-label', `Delete ${view.name}`);
+        experience?.decorateExercise({ day, ex, view, item });
         exList.append(item);
       });
 
@@ -1718,12 +1737,24 @@
       card.append(header, body);
       container.append(card);
     });
+    experience?.renderWorkoutHeader();
   }
 
   // --- Modal Helpers ---
+  const modalReturnFocus = new Map();
   function openModal(modalId) {
     const m = $(modalId);
-    if (m) m.classList.add('active');
+    if (m) {
+      modalReturnFocus.set(modalId, document.activeElement);
+      const dialog = m.querySelector('.modal');
+      if (dialog) {
+        dialog.setAttribute('role', 'dialog'); dialog.setAttribute('aria-modal', 'true'); dialog.tabIndex = -1;
+        const title = dialog.querySelector('.modal-title');
+        if (title) { if (!title.id) title.id = modalId + '-title'; dialog.setAttribute('aria-labelledby', title.id); }
+      }
+      m.classList.add('active');
+      requestAnimationFrame(() => { if (m.classList.contains('active')) (dialog?.querySelector('input:not([type="hidden"]), button, select') || dialog)?.focus(); });
+    }
   }
 
   function closeModal(modalId) {
@@ -1742,7 +1773,22 @@
     }
     const m = $(modalId);
     if (m) m.classList.remove('active');
+    const previous = modalReturnFocus.get(modalId);
+    if (previous?.isConnected) previous.focus();
+    modalReturnFocus.delete(modalId);
   }
+
+  document.addEventListener('keydown', event => {
+    const modal = [...document.querySelectorAll('.modal-overlay.active')].at(-1);
+    if (!modal) return;
+    if (event.key === 'Escape') { event.preventDefault(); closeModal(modal.id); }
+    if (event.key !== 'Tab') return;
+    const controls = [...modal.querySelectorAll('button, input, select, textarea, a[href], [tabindex="0"]')].filter(el => !el.disabled && el.getClientRects().length);
+    if (!controls.length) return;
+    const first = controls[0], last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
 
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', e => {
@@ -2894,40 +2940,9 @@
     showToast('Backup data exported!');
   };
 
-  $('btn-import-data').onclick = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    // No accept filter: Android file pickers often label .json as a generic file and would hide it
-    input.onchange = e => {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = ev => {
-          try {
-            const imported = JSON.parse(ev.target.result);
-            if (imported && imported.profile) {
-              state = normalizeState(imported);
-              saveState();
-              initApp();
-              showToast('Data imported successfully!');
-            } else {
-              alert('That file is not a Ghosty Gains backup.');
-            }
-          } catch (err) {
-            alert('Invalid backup JSON file.');
-          }
-        };
-        reader.readAsText(file);
-      }
-    };
-    input.click();
-  };
-
-  $('btn-reset-all-data').onclick = () => {
+  $('btn-reset-all-data').onclick = async () => {
     if (confirm('Reset all Ghosty Gains data to original defaults?')) {
-      if (window.AndroidApp && typeof window.AndroidApp.deleteProgressPhoto === 'function') {
-        (state.progressPhotos || []).forEach(p => window.AndroidApp.deleteProgressPhoto(p.id));
-      }
+      await Promise.all((state.progressPhotos || []).map(photo => window.GhostyPhotos.remove(photo)));
       // Remove legacy keys too, otherwise loadState() would restore the old data
       [STORAGE_KEY, ...LEGACY_STORAGE_KEYS].forEach(k => localStorage.removeItem(k));
       if (window.AndroidApp && typeof window.AndroidApp.clearStateBackup === 'function') window.AndroidApp.clearStateBackup();
@@ -5604,7 +5619,7 @@
       tile.className = 'progress-thumb' + (p.ok ? '' : ' failed');
       const img = document.createElement('img');
       img.loading = 'lazy';
-      img.src = p.photoUri;
+      img.src = window.GhostyPhotos.source(p.photoUri);
       img.alt = `${p.pose} photo ${p.date}`;
       img.onerror = () => { img.style.display = 'none'; };
       const label = document.createElement('div');
@@ -5651,7 +5666,7 @@
     if (!photo) return;
     const other = (state.progressPhotos || []).find(p => p.id === $('progress-compare-select').value) || null;
     const showLines = $('progress-show-lines').checked;
-    const src = p => (showLines && p.markedUri) ? p.markedUri : p.photoUri;
+    const src = p => window.GhostyPhotos.source((showLines && p.markedUri) ? p.markedUri : p.photoUri);
 
     // Older photo on the left, newer on the right
     const pair = other ? [other, photo].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)) : [photo];
@@ -5717,7 +5732,8 @@
 
   function deleteProgressPhoto(id) {
     if (!confirm('Delete this progress photo? This can\'t be undone.')) return;
-    if (window.AndroidApp && typeof window.AndroidApp.deleteProgressPhoto === 'function') window.AndroidApp.deleteProgressPhoto(id);
+    const photo = (state.progressPhotos || []).find(p => p.id === id);
+    if (photo) window.GhostyPhotos.remove(photo).catch(() => showToast('The photo file could not be removed.'));
     state.progressPhotos = (state.progressPhotos || []).filter(p => p.id !== id);
     saveState();
     closeModal('modal-progress-photo');
@@ -6782,7 +6798,7 @@
   const TUTORIAL_STEPS = [
     { target: '#nav-workouts', click: true, title: 'Start with Workouts', text: 'This is your training plan. Tap the highlighted Workouts tab to see what to train today.' },
     { target: '#workout-rpe', title: 'Choose your effort', text: 'RPE sets how close you train to failure. Higher RPE creates fewer exercises and working sets. Change the slider or use a training style preset when planning your session.', tab: 'workouts' },
-    { target: '#workout-days-container .exercise-item', title: 'Complete your exercises', text: 'Tick the box beside each finished exercise. Use the camera button for exercise instructions, and the pencil to edit your notes. Checks are saved and reset each new week.', tab: 'workouts' },
+    { target: '#workout-days-container .exercise-item', title: 'Log your training', text: 'Use Log Sets to save weights, reps and optional RPE, compare last time and see your records. Weekly checkboxes track exercise completion. Your set history stays saved.', tab: 'workouts' },
     { target: '#nav-nutrition', click: true, title: 'Now open Nutrition', text: 'Tap Nutrition to track what you eat and prepare meals for the days ahead.' },
     { target: '#nutrition-day-controls', title: 'History and meal prep', text: 'Choose any date to review past entries or plan a future day. Copy a day to the coming week. Prepared meals stay Planned until you mark them Eaten.', tab: 'nutrition' },
     { target: '#nutrition-food-actions', title: 'Add your food', text: 'Scan packaging, search foods, or build a recipe from ingredients and exact gram weights. Your Library saves foods and recipes so you can log them again with any serving size.', tab: 'nutrition' },
@@ -6834,6 +6850,7 @@
     $('btn-tutorial-next').textContent = tutorialStep === TUTORIAL_STEPS.length - 1 ? 'Finish Tour' : 'Next';
     $('btn-tutorial-back').disabled = tutorialStep === 0;
     const target = tutorialTarget();
+    if (target?.closest('details')) target.closest('details').open = true;
     target?.scrollIntoView({ block: 'center', behavior: 'instant' });
     if (step.click) target?.focus({ preventScroll: true }); else $('btn-tutorial-next').focus({ preventScroll: true });
     positionTutorial();
@@ -7172,7 +7189,26 @@
     renderStepTracker();
     renderSleepTracker();
     renderMachineWorkouts();
+    experience?.refresh();
+    window.GhostyPhotos.hydrate(state.progressPhotos).then(() => renderProgress()).catch(error => showToast(error.message));
   }
+
+  experience = window.GhostyExperience({
+    getState: () => state, save: saveState, today: getTodayString, toKg,
+    todayIndex: getTodayRoutineIndex, getDayFilter: () => selectedWorkoutDayFilter,
+    setDayFilter: value => { selectedWorkoutDayFilter = value; },
+    navigate: switchTab, renderWorkouts, renderNutrition, renderProgress,
+    selectNutritionToday: () => selectNutritionDate(getTodayString()),
+    openModal, closeModal, toast: showToast, normalize: normalizeState,
+    replaceState: async next => {
+      next.savedAt = Date.now();
+      // Commit metadata only after all image files have been restored successfully.
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      state = next;
+      writeNativeMirror();
+      initApp();
+    }
+  });
 
   document.addEventListener('DOMContentLoaded', initApp);
   if (document.readyState === 'complete' || document.readyState === 'interactive') {

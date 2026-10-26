@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Ghosty Gains — Bodybuilding &amp; Physique App</title>
   <link rel="stylesheet" href="app.css">
 </head>
@@ -21,17 +21,38 @@
     </div>
     <div class="header-actions">
       <button class="btn btn-outline btn-sm" id="btn-start-tutorial" aria-label="Show app tutorial">? Guide</button>
-      <div class="badge-goal" id="header-goal-badge" title="Tap to switch Goal">
+      <button class="badge-goal" id="header-goal-badge" title="Tap to switch Goal" aria-label="Change training goal">
         <span id="active-goal-badge">💪 Bodybuilder Return</span>
-      </div>
+      </button>
     </div>
   </header>
 
   <!-- Main Scrollable App Container -->
   <main class="container">
 
+    <section id="tab-today" class="tab-view active" aria-label="Today">
+      <div class="today-heading"><div><p class="eyebrow" id="today-date"></p><h1>Your day. Your gains.</h1></div><span class="today-mark" aria-hidden="true">✦</span></div>
+      <div class="card today-workout">
+        <p class="eyebrow">Your next move</p><h2 id="today-workout-title">Today's workout</h2>
+        <p class="report-text" id="today-workout-summary"></p>
+        <button class="btn btn-cyan btn-block" id="btn-today-start">Start Workout</button>
+      </div>
+      <div class="today-metrics" id="today-metrics"></div>
+      <div class="quick-actions" aria-label="Quick logging">
+        <button class="btn btn-cyan" id="btn-today-food">Add Food</button>
+        <button class="btn btn-outline" id="btn-today-water">+250 ml Water</button>
+        <button class="btn btn-outline" id="btn-today-weight">Log Weight</button>
+        <button class="btn btn-outline" id="btn-today-sleep">Log Sleep</button>
+      </div>
+      <div class="card"><div class="card-title-row"><h2 class="card-title">Your weekly review</h2><span class="day-badge">Last 7 days</span></div>
+        <p class="report-text" id="weekly-date-range"></p><div id="weekly-review" class="review-grid"></div>
+        <p class="report-text">Averages use logged days. Weight change compares this week's average with the previous seven days. Food totals reflect what you logged.</p>
+      </div>
+      <div class="card"><h2 class="card-title">Recent training</h2><div id="recent-training"></div></div>
+    </section>
+
     <!-- ==================== TAB 1: WORKOUTS ==================== -->
-    <section id="tab-workouts" class="tab-view active">
+    <section id="tab-workouts" class="tab-view">
 
       <div class="subnav-pills">
         <button class="subnav-btn active" id="subtab-plan" data-subview="subview-plan">📋 My Plan</button>
@@ -41,8 +62,33 @@
       <!-- SUBVIEW 1: WORKOUT PLAN -->
       <div id="subview-plan" class="subview active">
 
+      <!-- Current Active Routine Header Card -->
+      <div class="card" id="workout-plan-header">
+        <div class="card-title-row">
+          <div>
+            <div class="card-title purple" id="active-routine-name">Ghosty's Bodybuilding Return Split</div>
+            <div class="card-subtitle" id="current-goal-tagline">Rebuild muscle, joint health, RPE 8–10, controlled quality sets</div>
+          </div>
+        </div>
+
+        <!-- Day Filter Chips (built from the active routine in app.js) -->
+        <div class="workout-session-actions"><button class="btn btn-cyan" id="btn-start-workout">Start Workout</button><button class="btn btn-outline" id="btn-finish-workout" hidden>Finish Workout</button></div>
+        <p class="report-text" id="workout-session-status" role="status"></p>
+        <div class="day-filter-bar" id="workout-day-filter-bar"></div>
+
+        <div class="callout">
+          <strong>Tip:</strong> Use Log Sets to save weights, reps and optional RPE. Weekly checkboxes track exercise completion; your set history stays saved.
+        </div>
+      </div>
+
+      <!-- Diet & health auto-adjustments -->
+      <p class="report-text" id="workout-machine-summary" aria-live="polite"></p>
+      <div id="workout-adapt-banner" style="margin-bottom: 10px;"></div>
+
+      <!-- Workout Days List Container -->
+      <div id="workout-days-container"></div>
       <!-- Rest Timer Bar -->
-      <div class="card">
+      <details class="card workout-settings" id="workout-settings"><summary>Workout intensity &amp; training settings</summary>
         <div class="card-title purple">Workout Intensity</div>
         <div class="form-group">
           <label for="training-style">Training style preset</label>
@@ -59,7 +105,7 @@
         </div>
         <p class="report-text" id="workout-rpe-summary" aria-live="polite"></p>
         <p class="report-text">Changing RPE automatically adjusts your training days. Warm up before working sets; take longer rests if your form needs it.</p>
-      </div>
+      </details>
       <div class="rest-timer-bar">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 18px;">⏱️</span>
@@ -72,33 +118,11 @@
           <button class="timer-preset-btn" data-sec="120">2m</button>
           <button class="btn btn-cyan btn-sm" id="btn-timer-start">Start</button>
           <button class="btn btn-outline btn-sm" id="btn-timer-pause">Pause</button>
-          <button class="btn btn-outline btn-sm" id="btn-timer-reset">↺</button>
+          <button class="btn btn-outline btn-sm" id="btn-timer-reset" aria-label="Reset rest timer">↺</button>
         </div>
       </div>
 
-      <!-- Current Active Routine Header Card -->
-      <div class="card">
-        <div class="card-title-row">
-          <div>
-            <div class="card-title purple" id="active-routine-name">Ghosty's Bodybuilding Return Split</div>
-            <div class="card-subtitle" id="current-goal-tagline">Rebuild muscle, joint health, RPE 8–10, controlled quality sets</div>
-          </div>
-        </div>
 
-        <!-- Day Filter Chips (built from the active routine in app.js) -->
-        <div class="day-filter-bar" id="workout-day-filter-bar"></div>
-
-        <div class="callout">
-          <strong>Tip:</strong> Tap checkboxes to log completed exercises (they reset every Monday). Tap the pencil icon (✎) to customize weights, reps, or cues.
-        </div>
-      </div>
-
-      <!-- Diet & health auto-adjustments -->
-      <p class="report-text" id="workout-machine-summary" aria-live="polite"></p>
-      <div id="workout-adapt-banner" style="margin-bottom: 10px;"></div>
-
-      <!-- Workout Days List Container -->
-      <div id="workout-days-container"></div>
       </div>
 
       <!-- SUBVIEW 2: MUSCLE PICKER -->
@@ -227,6 +251,11 @@
 
       <!-- Quick Action Food & Barcode Bar -->
       <div class="card" id="nutrition-food-actions" style="padding: 12px; margin-bottom: 12px; background: rgba(0,0,0,0.25);">
+        <button class="btn btn-cyan btn-block" id="btn-add-food" aria-haspopup="dialog">Add Food</button>
+        <p class="report-text">Search, scan a barcode, or choose a saved meal.</p>
+      </div>
+      <div class="modal-overlay" id="modal-food-actions"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="food-actions-title" tabindex="-1">
+        <div class="modal-header"><h2 class="modal-title" id="food-actions-title">Add Food</h2><button class="modal-close" data-close-modal="modal-food-actions" aria-label="Close food choices">✕</button></div>
         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
           <button class="btn btn-cyan btn-sm" id="btn-open-scanner" style="flex: 1; min-width: 120px;">📷 Scan Barcode</button>
           <button class="btn btn-outline btn-sm" id="btn-snap-photo-barcode" style="flex: 1; min-width: 110px;">📸 Snap Photo</button>
@@ -238,7 +267,7 @@
         </div>
         <!-- Hidden Photo Capture Input for instant fallback -->
         <input type="file" id="barcode-file-snap" accept="image/*" capture="environment" style="display: none;">
-      </div>
+      </div></div>
 
       <!-- ================= SUBVIEW: SIMPLE MODE ================= -->
       <div id="nutri-view-simple" class="nutriview active">
@@ -811,7 +840,7 @@
             <button class="day-chip" data-filter="back">Back</button>
           </div>
           <div class="progress-grid" id="progress-gallery-grid"></div>
-          <p class="card-subtitle" style="margin-top: 8px;">Photos are kept privately inside the app and aren't included in data backups — use "Save to phone gallery" on any photo to keep a copy.</p>
+          <p class="card-subtitle" style="margin-top: 8px;">Photos stay on your device. Choose Full Backup in App Data &amp; Backup to include them when moving phones.</p>
         </div>
 
         <!-- Tape measurements -->
@@ -866,9 +895,11 @@
           <div class="card-title-row">
             <div class="card-title purple">⚙️ App Data &amp; Backup</div>
           </div>
-          <p class="card-subtitle" style="margin-bottom: 12px;">Save or restore your custom workouts, food logs, weight history, tape sizes and photo measurements (the photos themselves stay on the phone).</p>
+          <p class="card-subtitle" style="margin-bottom: 12px;">Data Backup saves your logs and measurements. Full Backup also includes original and marked progress photos, ready to restore on another device.</p>
+          <button class="btn btn-cyan btn-block" id="btn-export-full" style="margin-bottom: 10px;">Full Backup · Include Photos</button>
+          <p class="report-text" id="backup-status" role="status"></p>
           <div style="display: flex; gap: 8px;">
-            <button class="btn btn-outline btn-sm" id="btn-export-data" style="flex: 1;">💾 Export Backup</button>
+            <button class="btn btn-outline btn-sm" id="btn-export-data" style="flex: 1;">Data Backup</button>
             <button class="btn btn-outline btn-sm" id="btn-import-data" style="flex: 1;">📂 Restore Backup</button>
           </div>
           <div style="margin-top: 12px; text-align: center;">
@@ -881,6 +912,18 @@
   </main>
 
   <!-- ==================== MODALS ==================== -->
+  <div class="modal-overlay" id="modal-set-log"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="set-log-title" tabindex="-1">
+    <div class="modal-header"><h2 class="modal-title" id="set-log-title">Log Sets</h2><button class="modal-close" data-close-modal="modal-set-log" aria-label="Close set logging">✕</button></div>
+    <p class="report-text" id="set-log-target"></p><p class="report-text" id="set-log-previous"></p>
+    <div class="input-row"><label for="set-weight-unit">Weight unit</label><select id="set-weight-unit"><option value="kg">kg</option><option value="lb">lb</option></select></div>
+    <p class="report-text">Enter added weight (0 for bodyweight). Leave unused sets blank. RPE is optional.</p>
+    <div class="set-row set-labels" aria-hidden="true"><span>Set</span><span>Weight</span><span>Reps</span><span>RPE</span><span></span></div>
+    <form id="set-log-form"><div id="set-log-rows"></div>
+      <div class="workout-session-actions"><button class="btn btn-outline btn-sm" type="button" id="btn-add-set">Add Set</button><button class="btn btn-outline btn-sm" type="button" id="btn-use-last-sets">Use Last Values</button></div>
+      <p id="set-log-error" class="form-error" role="alert"></p><button class="btn btn-cyan btn-block" type="submit">Save Sets</button>
+    </form>
+    <p class="report-text" id="set-log-progress"></p><details class="set-history"><summary>Exercise history &amp; records</summary><div id="set-log-history"></div></details>
+  </div></div>
   <div class="modal-overlay" id="modal-nutrition-history"><div class="modal">
     <div class="modal-header"><div class="modal-title">Nutrition History</div><button class="modal-close" data-close-modal="modal-nutrition-history" aria-label="Close nutrition history">✕</button></div>
     <p class="report-text">Choose a saved day to see its foods and nutrition totals. The date picker also opens days with no entries.</p>
@@ -1305,8 +1348,9 @@
   </div>
 
   <!-- ==================== BOTTOM NAVIGATION (4 ITEMS) ==================== -->
-  <nav class="bottom-nav">
-    <button class="nav-item active" id="nav-workouts" data-tab="workouts">
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <button class="nav-item active" id="nav-today" data-tab="today"><span class="nav-icon" data-icon="home" aria-hidden="true"></span><span class="nav-label">Today</span></button>
+    <button class="nav-item" id="nav-workouts" data-tab="workouts">
       <span class="nav-icon">🏋️</span>
       <span class="nav-label">Workouts</span>
     </button>
@@ -1328,6 +1372,9 @@
   <script src="workout_nutrition.js"></script>
   <script src="daily_planning.js"></script>
   <script src="supplements.js"></script>
+  <script src="training_journal.js"></script>
+  <script src="photo_backup.js"></script>
+  <script src="daily_experience.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

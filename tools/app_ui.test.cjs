@@ -52,6 +52,7 @@ const daily = require('../app/src/main/assets/daily_planning.js');
     assert.equal(await firstDay.locator('.exercise-check').first().isChecked(), true);
     assert.ok((await firstDay.locator('.day-subtitle').textContent()).startsWith('1 /'));
     await page.reload();
+    await page.locator('#nav-workouts').click();
     await page.locator('#workout-day-filter-bar button').filter({ hasText: 'Full Week' }).click();
     firstDay = page.locator('.day-card:not(.rest-day)').first();
     assert.equal(await firstDay.locator('.exercise-check').first().isChecked(), true);
@@ -84,6 +85,7 @@ const daily = require('../app/src/main/assets/daily_planning.js');
       }
       assert.equal(await page.locator('#timer-display').textContent(), String(Math.floor(p.rest / 60)).padStart(2, '0') + ':' + String(p.rest % 60).padStart(2, '0'));
     }
+    await page.locator('#workout-settings').evaluate(el => { el.open = true; });
     for (const [style, value] of Object.entries(logic.styles)) {
       await page.locator('#training-style').selectOption(style);
       assert.equal(await page.locator('#workout-rpe').inputValue(), String(value.rpe));
@@ -117,6 +119,7 @@ const daily = require('../app/src/main/assets/daily_planning.js');
     assert.equal(await page.locator('#nutri-view-simple').isVisible(), true);
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ghostyGainsData_v4')).nutritionMode), 'simple');
     console.log('PASS: Simple/Pro nutrition switching, panel visibility, selected mode and persistence');
+    if (!await page.locator('#modal-food-actions').isVisible()) await page.locator('#btn-add-food').click();
     await page.locator('#btn-open-meal-builder').click();
     await page.locator('#meal-builder-name').fill('Regression Recipe');
     await page.locator('#btn-save-custom-meal').click();
@@ -159,6 +162,8 @@ const daily = require('../app/src/main/assets/daily_planning.js');
     assert.equal(log.ingredients.length, 2);
     console.log('PASS: manual recipe, all twelve totals, exact gram edits, delete, save and scaled serving log');
 
+    if (!await page.locator('#modal-food-actions').isVisible()) await page.locator('#btn-add-food').click();
+
     await page.locator('#btn-open-meal-builder').click();
     await page.locator('#meal-builder-name').fill('Scanned Recipe');
     await page.locator('.ingredient-scan').click();
@@ -177,6 +182,7 @@ const daily = require('../app/src/main/assets/daily_planning.js');
     await page.locator('#modal-food-library .modal-close').click();
     await page.reload();
     await page.locator('#nav-nutrition').click();
+    if (!await page.locator('#modal-food-actions').isVisible()) await page.locator('#btn-add-food').click();
     await page.locator('#btn-open-food-library').click();
     assert.equal(await page.locator('.food-lib-item').filter({ hasText: 'Scanned Recipe' }).count(), 1);
     console.log('PASS: ingredient barcode lookup, unknown nutrient display and recipe persistence');
@@ -191,6 +197,7 @@ const daily = require('../app/src/main/assets/daily_planning.js');
         'monounsaturated-fat_100g': 0.5, 'polyunsaturated-fat_100g': 0.2, 'trans-fat_100g': 0
       } } }
     }));
+    if (!await page.locator('#modal-food-actions').isVisible()) await page.locator('#btn-add-food').click();
     await page.locator('#btn-open-meal-builder').click();
     await page.locator('#meal-builder-name').fill('Liquid Recipe');
     await page.locator('.ingredient-scan').click();
@@ -214,6 +221,7 @@ const daily = require('../app/src/main/assets/daily_planning.js');
       await page.locator('#nutrition-date').dispatchEvent('change');
     }
     async function addSavedRecipe() {
+      if (!await page.locator('#modal-food-actions').isVisible()) await page.locator('#btn-add-food').click();
       await page.locator('#btn-open-food-library').click();
       await page.locator('.food-lib-item').filter({ hasText: 'Regression Recipe' }).click();
       await page.locator('#scanned-result-container button').filter({ hasText: /Log to|Plan to/ }).click();

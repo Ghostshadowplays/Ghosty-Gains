@@ -23,6 +23,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.MediaStore
+import android.util.Base64
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
@@ -285,7 +286,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         settings.cacheMode = WebSettings.LOAD_DEFAULT
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
-        settings.setSupportZoom(false)
+        settings.setSupportZoom(true)
+        settings.builtInZoomControls = true
+        settings.displayZoomControls = false
         settings.mediaPlaybackRequiresUserGesture = false
 
         webView.webViewClient = object : WebViewClient() {}
@@ -906,6 +909,45 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         @JavascriptInterface
         fun deleteProgressPhoto(id: String) {
             if (id.matches(Regex("pp_\\d+"))) bodyAnalyzer.delete(id)
+        }
+
+        @JavascriptInterface
+        fun exportProgressPhoto(id: String): String {
+            if (!id.matches(Regex("pp_\\d+"))) return "{}"
+            return try {
+                fun encode(file: File): String {
+                    if (!file.isFile || file.length() > 16_000_000) return ""
+                    return "data:image/jpeg;base64," + Base64.encodeToString(file.readBytes(), Base64.NO_WRAP)
+                }
+                JSONObject().put("original", encode(bodyAnalyzer.photoFile(id)))
+                    .put("marked", encode(bodyAnalyzer.markedFile(id))).toString()
+            } catch (_: Exception) { "{}" }
+        }
+
+        @JavascriptInterface
+        fun restoreProgressPhoto(id: String, original: String, marked: String): String {
+            if (!id.matches(Regex("pp_\\d+"))) return "{}"
+            // Restores use fresh IDs, so a failed import cannot overwrite existing photos.
+            if (bodyAnalyzer.photoFile(id).exists() || bodyAnalyzer.markedFile(id).exists()) return "{}"
+            return try {
+                fun decode(data: String): ByteArray {
+                    require(data.length <= 24_000_000 && data.matches(Regex("data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}")))
+                    val bytes = Base64.decode(data.substringAfter(','), Base64.DEFAULT)
+                    val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    require(bounds.outWidth > 0 && bounds.outHeight > 0 && bounds.outWidth <= 10000 && bounds.outHeight <= 10000)
+                    return bytes
+                }
+                val originalBytes = decode(original)
+                val markedBytes = if (marked.isNotEmpty()) decode(marked) else null
+                bodyAnalyzer.photoFile(id).writeBytes(originalBytes)
+                if (markedBytes != null) bodyAnalyzer.markedFile(id).writeBytes(markedBytes)
+                JSONObject().put("photoUri", Uri.fromFile(bodyAnalyzer.photoFile(id)).toString())
+                    .put("markedUri", if (markedBytes != null) Uri.fromFile(bodyAnalyzer.markedFile(id)).toString() else "").toString()
+            } catch (_: Exception) {
+                bodyAnalyzer.delete(id)
+                "{}"
+            }
         }
 
         @JavascriptInterface

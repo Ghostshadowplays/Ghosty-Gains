@@ -6,10 +6,17 @@
 
 ## Key Features
 
+### Today & Weekly Review
+- **Today overview**: Opens with today's routine, working sets logged, calorie/protein/water/step progress and shortcuts to add food, water, weight and sleep.
+- **Weekly review**: Combines training days, working sets, average logged protein, steps, sleep and bodyweight. Weight change compares two seven-day averages; missing days are not treated as zero.
+- **Simpler navigation**: Five consistent outline icons, larger tap targets and text, visible keyboard focus, reduced-motion support and pinch zoom in both the browser and Android. Workout settings expand below the routine. Nutrition's Add Food button opens the food choices.
+
 ### 🏋️ Training & Workout Splits
 - **Tailored Training Splits**: Structured routines designed for muscle hypertrophy, joint health, and safe progression across various fitness levels and equipment access (Gym, Dumbbells/Home, Bodyweight).
 - **Interactive Muscle Focus Picker**: Visual SVG-based body map to target specific muscle groups and receive recommended exercises, form cues, and sets.
 - **Built-in Rest Timer & Custom Exercise Logging**: Configurable rest interval timer, form cue logging, and weekly completion tracking.
+- **Set-by-set training journal**: Start/resume/finish a dated workout; log actual weight in kg or lb, reps and optional RPE for each working set. Edit today's sets without duplicating them, compare the previous session, reuse its values, and review recent workouts. Bodyweight sets use 0 added weight. Existing weekly exercise checks and historical completion records remain saved.
+- **Progression & records**: Each exercise shows its best load/reps and previous working sets. Suggestions build reps within the prescribed range before suggesting the smallest available load increase; incomplete sets or reported RPE above 8 hold the load steady. Timed and distance exercises retain their existing completion controls.
 - **RPE Workout Intensity**: A 1–10 slider adjusts exercise count, working sets, reps in reserve and rest. RPE 6 gives 5 exercises with 4 sets, RPE 7–8 gives 3–4 exercises with 3 sets, and RPE 9–10 gives 2–3 exercises with 2 sets. Training style presets choose a starting RPE; the slider remains adjustable. RPE 1–5 uses 5 exercises, 4 easy sets and longer rests. Recovery days stay as recovery days.
 - **Personal Supplement Checklist**: Goals & Logs → Supps lets users choose from Vitamin D3, Creatine, Protein Powder, Omega-3, Multivitamins, Beta-Alanine and Electrolytes. Choices stay saved; separate Taken today checks reset daily. The plan guide explains conditional options for the active goal, training style and RPE without automatically selecting products. It accounts for age, pregnancy/postpartum, heart/blood pressure context and UK vitamin D season; dietary gaps remain conditional. Existing checked supplements and custom backup entries are preserved on upgrade.
 
@@ -45,6 +52,7 @@
 ### 🔒 Privacy & Data Portability
 - **100% Local Processing**: All sensitive user health data and photos remain stored securely on the local device.
 - **Backup & Restore**: Simple JSON export/import to backup workout logs, nutrition history, and body measurements.
+- **Full Backup with photos**: App Data & Backup offers a separate full JSON archive with original and marked progress images plus all logs. Restore works across Android and the browser, including files stored in browser IndexedDB. Images are validated and restored under new IDs before metadata is committed; failed photo imports keep the current logs. Older data-only JSON backups are still supported. Data Backup and the daily automatic backup continue to exclude image bytes; choose Full Backup when moving devices.
 
 ---
 
@@ -139,9 +147,11 @@ Ghosty Gains/
 
 ### Regression checks
 
-Run `node --test tools/workout_nutrition.test.cjs tools/daily_planning.test.cjs tools/supplements.test.cjs` for workout, nutrition, calendar, meal prep, machine reading, supplement migration and conditional guidance checks, and `.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug` for the Android recovery policy tests and APK build.
+Run `node --test tools/workout_nutrition.test.cjs tools/daily_planning.test.cjs tools/supplements.test.cjs tools/training_journal.test.cjs` for workout, nutrition, calendar, meal prep, machine reading, supplements, training records, progression and weekly review calculations, and `.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug` for the Android recovery policy tests and APK build.
 
 `node tools/app_ui.test.cjs` checks both HTML entry points in a real browser, including workout completion by click, touch and keyboard, saved checks, RPE presets, recipes, serving sizes, barcode nutrients, nutrition history, seven-day meal prep, the guided tutorial, supplement choices and daily resets, plan suggestions and machine photo review. Photo OCR is stubbed in this repeatable UI suite; the Android bridge simulation covers stale callbacks, cancellation, permission denial and camera errors. It requires `playwright-core` on the Node module path and Microsoft Edge; set `BROWSER_PATH` to use another installed Chromium browser. Set `UI_SCREENSHOT_DIR` to save mobile tutorial and supplement screenshots. Real Android camera capture and OCR should also be checked on a phone.
+
+`node tools/experience_ui.test.cjs` checks both entry points for legacy data migration, Today shortcuts, saved-set editing, kg/lb conversion, previous-session values, personal records, weekly review, full-photo export/restore/re-export and invalid-backup protection. It also checks 320/390/768px layouts. It uses the same browser setup; `UI_SCREENSHOT_DIR` saves Today screenshots. Physical-device checking is still needed for native photo transfer and pinch gestures.
 
 The project includes a GitHub Actions workflow (`.github/workflows/release.yml`) configured to automatically build and attach APKs:
 - **Trigger**: Creating and publishing a new release tag in GitHub or dispatching manually from the Actions tab.
