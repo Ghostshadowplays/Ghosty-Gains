@@ -1,4 +1,4 @@
-name: Build & Release APK
+name: Build & Release APK and Play Bundle
 
 on:
   release:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-apk:
-    name: Build Release APK
+    name: Build Release APK and Play Bundle
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -26,17 +26,41 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon
+      - name: Configure upload signing
+        env:
+          UPLOAD_KEYSTORE_BASE64: ${{ secrets.GHOSTYGAINS_UPLOAD_KEYSTORE_BASE64 }}
+          GHOSTYGAINS_STORE_PASSWORD: ${{ secrets.GHOSTYGAINS_STORE_PASSWORD }}
+          GHOSTYGAINS_KEY_ALIAS: ${{ secrets.GHOSTYGAINS_KEY_ALIAS }}
+          GHOSTYGAINS_KEY_PASSWORD: ${{ secrets.GHOSTYGAINS_KEY_PASSWORD }}
+        run: |
+          for name in UPLOAD_KEYSTORE_BASE64 GHOSTYGAINS_STORE_PASSWORD GHOSTYGAINS_KEY_ALIAS GHOSTYGAINS_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "Missing release signing secret: $name"
+              exit 1
+            fi
+          done
+          mkdir -p keystore
+          printf '%s' "$UPLOAD_KEYSTORE_BASE64" | base64 --decode > keystore/ghostygains-upload.jks
 
-      - name: Upload APK to Release Assets
+      - name: Check and build release artifacts
+        env:
+          GHOSTYGAINS_STORE_PASSWORD: ${{ secrets.GHOSTYGAINS_STORE_PASSWORD }}
+          GHOSTYGAINS_KEY_ALIAS: ${{ secrets.GHOSTYGAINS_KEY_ALIAS }}
+          GHOSTYGAINS_KEY_PASSWORD: ${{ secrets.GHOSTYGAINS_KEY_PASSWORD }}
+        run: ./gradlew :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease :app:bundleRelease --no-daemon
+
+      - name: Upload release assets
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/*.apk
+          files: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
 
-      - name: Upload APK as Workflow Artifact
+      - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: GhostyGains-APK
-          path: app/build/outputs/apk/release/*.apk
+          name: GhostyGains-Release
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab

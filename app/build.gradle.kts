@@ -1,18 +1,27 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
+val releaseSigning = Properties().apply {
+    val propertiesFile = rootProject.file("keystore.properties")
+    if (propertiesFile.isFile) {
+        propertiesFile.inputStream().use { load(it) }
+    }
+}
+
 android {
     namespace = "com.ghostygains.app"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.ghostygains.app"
+        applicationId = "com.ghostyware.gains"
         minSdk = 24
-        targetSdk = 34
-        versionCode = 14
-        versionName = "1.5.2"
+        targetSdk = 36
+        versionCode = 16
+        versionName = "1.5.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -22,14 +31,19 @@ android {
         }
     }
 
-    // One fixed key (copy of this PC's debug key, which signed every earlier APK) so updates
-    // always install over the top and never force an uninstall that would wipe user data
+    // Keep the original key for sideloaded debug APK updates. Play releases use a private upload key.
     signingConfigs {
         getByName("debug") {
             storeFile = rootProject.file("keystore/ghostygains-debug.keystore")
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
+        }
+        create("release") {
+            storeFile = rootProject.file(releaseSigning.getProperty("storeFile", "keystore/ghostygains-upload.jks"))
+            storePassword = releaseSigning.getProperty("storePassword") ?: System.getenv("GHOSTYGAINS_STORE_PASSWORD")
+            keyAlias = releaseSigning.getProperty("keyAlias") ?: System.getenv("GHOSTYGAINS_KEY_ALIAS")
+            keyPassword = releaseSigning.getProperty("keyPassword") ?: System.getenv("GHOSTYGAINS_KEY_PASSWORD")
         }
     }
 
@@ -38,8 +52,9 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
-            signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

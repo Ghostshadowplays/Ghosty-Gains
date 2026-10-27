@@ -58,7 +58,7 @@
 
 ## Tech Stack & Architecture
 
-- **Platform**: Android (minSdk 24 / Android 7.0, targetSdk 34 / Android 14)
+- **Platform**: Android (minSdk 24 / Android 7.0, targetSdk 36 / Android 16)
 - **Language / Runtime**: Kotlin 1.9.24, Java 17, AndroidX
 - **UI Engine**: High-performance hybrid interface utilizing Android WebKit / WebView, modern HTML5, CSS3, and JavaScript
 - **Machine Learning & Vision**:
@@ -67,7 +67,7 @@
   - Google ML Kit Pose Detection Accurate (`pose-detection-accurate`)
   - Google ML Kit Subject / Selfie Segmentation (`subject-segmentation`, `segmentation-selfie`)
   - Google ML Kit Text Recognition (`text-recognition`, bundled Latin model)
-- **Build System**: Gradle 8.8 with Kotlin DSL (`build.gradle.kts`), Android Gradle Plugin (AGP) 8.4.2
+- **Build System**: Gradle 8.11.1 with Kotlin DSL (`build.gradle.kts`), Android Gradle Plugin (AGP) 8.10.1
 
 ---
 
@@ -110,7 +110,7 @@ Ghosty Gains/
 ### Prerequisites
 - **Android Studio** (Hedgehog / Iguana / Jellyfish or newer recommended)
 - **Java Development Kit (JDK)**: Version 17
-- **Android SDK**: API Level 34
+- **Android SDK**: API Level 36 and Build Tools 35.0.0
 
 ### Local Build Instructions
 
@@ -132,6 +132,7 @@ Ghosty Gains/
    The generated APK will be available in `app/build/outputs/apk/debug/`.
 
 3. **Build Release APK**:
+   Configure upload signing as described below first.
    ```bash
    # On Windows
    .\gradlew assembleRelease
@@ -140,6 +141,22 @@ Ghosty Gains/
    ./gradlew assembleRelease
    ```
    The release APK will be located in `app/build/outputs/apk/release/`.
+
+### Google Play app bundle
+
+Release builds use a private upload key, separate from the shared debug key. On this release machine, the key is `keystore/ghostygains-upload.jks` and its credentials are in `keystore.properties`. Both files are ignored by Git: back them up securely together. The public certificate is `keystore/ghostygains-upload-certificate.pem`.
+
+On another machine, restore the upload key, copy `keystore.properties.example` to `keystore.properties`, and enter its credentials. For an app already uploaded to Play, use its existing registered upload key. Never generate a replacement key just to build an update.
+
+```powershell
+.\gradlew.bat :app:testReleaseUnitTest :app:lintRelease :app:bundleRelease
+```
+
+Upload `app/build/outputs/bundle/release/app-release.aab` to a Play Console testing or production track with Play App Signing enabled. The Google Play package name is `com.ghostyware.gains`. This bundle is version 1.5.3 (version code 16); increase `versionCode` before uploading any subsequent update. Play uses its app signing key to sign installations, while this local key signs uploads.
+
+Release builds enable R8 code optimization, obfuscation, and resource shrinking. The JavaScript bridge's annotated methods retain their callable names. The matching crash deobfuscation file is `app/build/outputs/mapping/release/mapping.txt`; AGP also embeds it in the AAB for Play Console. Archive each release's mapping with its AAB so crash reports can be decoded using the correct version.
+
+Existing sideloaded APKs use the debug key and cannot be updated in place by an installation signed with a different key. Export a **Full Backup with photos** before switching an existing installation to Google Play, then restore it in the Play version.
 
 ---
 
@@ -153,9 +170,10 @@ Run `node --test tools/workout_nutrition.test.cjs tools/daily_planning.test.cjs 
 
 `node tools/experience_ui.test.cjs` checks both entry points for legacy data migration, Today shortcuts, saved-set editing, kg/lb conversion, previous-session values, personal records, weekly review, full-photo export/restore/re-export and invalid-backup protection. It also checks 320/390/768px layouts. It uses the same browser setup; `UI_SCREENSHOT_DIR` saves Today screenshots. Physical-device checking is still needed for native photo transfer and pinch gestures.
 
-The project includes a GitHub Actions workflow (`.github/workflows/release.yml`) configured to automatically build and attach APKs:
+The project includes a GitHub Actions workflow (`.github/workflows/release.yml`) configured to build and attach signed APKs and Play bundles:
 - **Trigger**: Creating and publishing a new release tag in GitHub or dispatching manually from the Actions tab.
-- **Artifact**: Compiles the release APK with Java 17 and attaches it directly to the GitHub Release assets.
+- **Artifact**: Checks and builds the release APK and AAB with Java 17 and attaches them to GitHub Release assets. It does not submit the app to Google Play.
+- **Required repository secrets**: `GHOSTYGAINS_UPLOAD_KEYSTORE_BASE64` (base64-encoded upload keystore), `GHOSTYGAINS_STORE_PASSWORD`, `GHOSTYGAINS_KEY_ALIAS`, and `GHOSTYGAINS_KEY_PASSWORD`. Configure these from the same upload key used locally; the workflow fails clearly if any are missing.
 
 ---
 
